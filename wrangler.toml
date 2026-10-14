@@ -1,0 +1,34 @@
+name = "wa-assistant"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+# Logs are visible in Cloudflare dashboard -> Workers & Pages -> wa-assistant -> Logs
+[observability]
+enabled = true
+
+[ai]
+binding = "AI"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "assistant-db"
+# The GitHub Action replaces this placeholder with your D1_DATABASE_ID at deploy time.
+database_id = "D1_DATABASE_ID_PLACEHOLDER"
+migrations_dir = "migrations"
+
+# Runs every minute (UTC) to deliver due reminders.
+[triggers]
+crons = ["* * * * *"]
+
+# Non-secret settings. Secrets (tokens etc.) are pushed by the GitHub Action.
+[vars]
+GRAPH_VERSION = "v25.0"
+TEMPLATE_NAME = "reminder"
+TEMPLATE_LANG = "en"
+DEFAULT_COUNTRY_CODE = "91"
+# Order the bot tries AI providers in. Providers without a key are skipped.
+# Options: workers-ai, groq, gemini
+LLM_PROVIDERS = "workers-ai,groq"
+LLM_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+GROQ_MODEL = "llama-3.3-70b-versatile"
+GEMINI_MODEL = "gemini-flash-latest"
