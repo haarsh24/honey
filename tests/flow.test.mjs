@@ -81,7 +81,7 @@ test('cron: in-window sends text and marks sent', async () => {
   await addDue(env);
   await runDueReminders(env, NOW);
   assert.equal(sent(calls)[0].type, 'text');
-  assert.equal(sent(calls)[0].text.body, 'Reminder: call mom');
+  assert.equal(sent(calls)[0].text.body, '⏰ Reminder: call mom');
   assert.equal((await env.DB.prepare('SELECT status FROM reminders').first()).status, 'sent');
 });
 

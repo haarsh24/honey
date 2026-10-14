@@ -13,7 +13,7 @@ async function deliver(env, to, text, inWindow) {
 
   if (!inWindow) return useTemplate();
   try {
-    return await sendText(env, to, `Reminder: ${text}`);
+    return await sendText(env, to, `⏰ Reminder: ${text}`);
   } catch (error) {
     if (error.code === REENGAGEMENT_ERROR) return useTemplate();
     throw error;

@@ -66,6 +66,17 @@ Tip: send the bot any message once a day and everything stays free.
 
 Commands: `/help`, `/reset`.
 
+## Voice notes, photos, PDFs and the daily briefing
+
+Needs the `GEMINI_KEY` secret (free key from aistudio.google.com).
+- **Voice note:** talk normally (English, Hindi or Hinglish). The bot transcribes it and does the task.
+- **Receipt photo:** logs the expense (rupee receipts only). Other photos are read and summarised.
+- **PDF:** summarised; due dates get an automatic 9:00 AM IST reminder.
+- **Briefing:** 8:00 AM IST daily (reminders, open tasks, yesterday's spend) and a Sunday 8:00 PM recap. Turn off with `/briefing off`.
+  Outside the 24-hour window these go through the `reminder` template, so approve it first (section 4).
+
+Gemini's free tier may use inputs for Google's training, so keep sensitive photos and documents out.
+
 ## Troubleshooting
 
 - **Deploy fails with "Missing GitHub secret or variable"**: the log names the missing one.

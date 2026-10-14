@@ -64,10 +64,19 @@ export const TOOLS = {
       ).bind(...words.map((w) => `%${likeEscape(w)}%`));
     }
     const { results } = await statement.all();
-    return {
-      count: results.length,
-      notes: results.map((r) => ({ id: r.id, text: r.text, saved: formatIST(r.created_at) })),
-    };
+    const shape = (rows) => rows.map((r) => ({ id: r.id, text: r.text, saved: formatIST(r.created_at) }));
+    if (results.length === 0 && words.length > 0) {
+      // No keyword hit: hand back recent notes so the model can pick by meaning.
+      const recent = await env.DB.prepare(
+        'SELECT id, text, created_at FROM notes ORDER BY id DESC LIMIT 40',
+      ).all();
+      return {
+        count: 0,
+        note: 'No keyword match. These are the most recent notes; pick any that match the question by meaning, or say nothing was found.',
+        recent_notes: shape(recent.results),
+      };
+    }
+    return { count: results.length, notes: shape(results) };
   },
 
   async list_notes(env, args) {

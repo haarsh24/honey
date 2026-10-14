@@ -1,3 +1,4 @@
+import { runBriefing, runWeekly } from './briefing.js';
 import { handleIncoming } from './handler.js';
 import { cleanup, runDueReminders } from './reminders.js';
 import { verifySignature } from './util.js';
@@ -8,7 +9,16 @@ export function extractMessages(payload) {
   for (const entry of payload?.entry ?? []) {
     for (const change of entry?.changes ?? []) {
       for (const m of change?.value?.messages ?? []) {
-        messages.push({ id: m.id, from: m.from, type: m.type, text: m.text?.body });
+        const file = m.audio ?? m.image ?? m.document;
+        messages.push({
+          id: m.id,
+          from: m.from,
+          type: m.type,
+          text: m.text?.body,
+          media: file
+            ? { id: file.id, mime: file.mime_type, caption: file.caption, filename: file.filename }
+            : undefined,
+        });
       }
     }
   }
@@ -67,13 +77,19 @@ export default {
   },
 
   async scheduled(controller, env, ctx) {
-    const now = controller.scheduledTime ?? Date.now();
+    let now = controller.scheduledTime ?? Date.now();
+    if (now < 1e11) now *= 1000; // tolerate seconds
     ctx.waitUntil(
       (async () => {
         try {
           await runDueReminders(env, now);
           const d = new Date(now);
-          if (d.getUTCHours() === 21 && d.getUTCMinutes() === 5) await cleanup(env, now); // 02:35 IST
+          const hour = d.getUTCHours();
+          const minute = d.getUTCMinutes();
+          const [bh, bm] = (env.BRIEFING_TIME_UTC || '02:30').split(':').map(Number); // 08:00 IST
+          if (hour === bh && minute === bm) await runBriefing(env, now);
+          if (d.getUTCDay() === 0 && hour === 14 && minute === 30) await runWeekly(env, now); // Sunday 20:00 IST
+          if (hour === 21 && minute === 5) await cleanup(env, now); // 02:35 IST
         } catch (error) {
           console.error('Cron failed:', error.message);
         }

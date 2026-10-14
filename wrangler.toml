@@ -1,6 +1,7 @@
 name = "wa-assistant"
 main = "src/index.js"
 compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
 
 # Logs are visible in Cloudflare dashboard -> Workers & Pages -> wa-assistant -> Logs
 [observability]
@@ -28,7 +29,9 @@ TEMPLATE_LANG = "en"
 DEFAULT_COUNTRY_CODE = "91"
 # Order the bot tries AI providers in. Providers without a key are skipped.
 # Options: workers-ai, groq, gemini
-LLM_PROVIDERS = "workers-ai,groq"
+LLM_PROVIDERS = "workers-ai,groq,gemini"
 LLM_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 GROQ_MODEL = "llama-3.3-70b-versatile"
 GEMINI_MODEL = "gemini-flash-latest"
+# Morning briefing time in UTC (02:30 UTC = 08:00 IST).
+BRIEFING_TIME_UTC = "02:30"

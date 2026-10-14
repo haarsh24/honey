@@ -3,17 +3,23 @@ import { getState, markSeen, setState } from './db.js';
 import { sendText } from './whatsapp.js';
 import { normalizePhone } from './util.js';
 import { formatIST } from './time.js';
+import { handleMedia } from './media.js';
+
+const MEDIA_TYPES = ['audio', 'image', 'document'];
 
 const HISTORY_LIMIT = 6; // messages kept for context (3 turns)
 
-const HELP_TEXT = `I can help with:
+const HELP_TEXT = `Your personal sidekick here 😎 I can help with:
 - Notes: "save: book idea - Atomic Habits", "what did I save about books?"
 - Reminders: "remind me to pay rent on the 1st at 9am", "remind me every Monday 8am to plan the week"
 - Expenses: "spent 450 on lunch", "how much did I spend this week?"
 - Tasks: "add task: renew insurance", "my tasks"
 - Writing: "draft an email asking my manager for leave on Friday"
+- Voice notes: just talk, I'll understand and do it (English, Hindi or Hinglish)
+- Photos: send a receipt and I'll log the expense; other photos I'll read and summarise
+- PDFs: send a bill or document, I'll summarise it and set reminders for due dates
 
-Commands: /help, /reset (forget this chat's context).
+Commands: /help, /reset (forget this chat's context), /briefing on|off (morning summary at 8:00 and Sunday spending recap).
 Please don't send passwords, card numbers or ID numbers.`;
 
 export function ownerNumber(env) {
@@ -70,13 +76,31 @@ export async function handleIncoming(env, msg, nowMs = Date.now()) {
   // Opens the 24-hour free-reply window, so remember when it started.
   await setState(env, 'last_inbound_at', nowMs);
 
-  if (msg.type !== 'text' || !msg.text) {
-    await sendText(env, owner, 'I can only read text messages for now.');
+  let text;
+  let prefix = '';
+  if (msg.type === 'text' && msg.text) {
+    text = msg.text.trim().slice(0, 2000);
+  } else if (MEDIA_TYPES.includes(msg.type)) {
+    try {
+      const result = await handleMedia(env, msg, nowMs);
+      if (result.reply) {
+        await sendText(env, owner, result.reply);
+        return { replied: true };
+      }
+      text = result.text;
+      prefix = result.prefix ?? '';
+    } catch (error) {
+      console.error('Media handling failed:', error.message);
+      let message = "Couldn't make sense of that file just now 😵 Try again, or just type it out?";
+      if (error.code === 'NO_KEY') message = 'Voice notes, photos and PDFs need the GEMINI_KEY secret to be set up first.';
+      else if (error.code === 'TOO_LARGE') message = 'That file is too large for me. Please send a smaller one.';
+      await sendText(env, owner, message);
+      return { replied: true, error: true };
+    }
+  } else {
+    await sendText(env, owner, 'I can handle text, voice notes, photos and PDFs. That one is beyond me, sorry 😅');
     return { replied: true };
   }
-
-  const text = msg.text.trim().slice(0, 2000);
-  const command = text.toLowerCase();
 
   try {
     await deliverMissedReminders(env, owner);
@@ -84,13 +108,19 @@ export async function handleIncoming(env, msg, nowMs = Date.now()) {
     console.error('Could not deliver missed reminders:', error.message);
   }
 
+  const command = msg.type === 'text' ? text.toLowerCase() : '';
+  if (command === '/briefing on' || command === '/briefing off') {
+    await setState(env, 'briefing_enabled', command.endsWith('on') ? 'on' : 'off');
+    await sendText(env, owner, command.endsWith('on') ? 'Morning briefing is on. Expect me at 8:00 AM IST with coffee-level energy ☕' : 'Morning briefing is off. I will stay quiet until you call me 🤐');
+    return { replied: true };
+  }
   if (command === '/help' || command === 'help') {
     await sendText(env, owner, HELP_TEXT);
     return { replied: true };
   }
   if (command === '/reset') {
     await setState(env, 'history', '[]');
-    await sendText(env, owner, 'Done. I cleared this chat\'s context. Your notes, reminders, tasks and expenses are untouched.');
+    await sendText(env, owner, 'Fresh start! 🧼 I forgot this chat, but your notes, reminders, tasks and expenses are safe.');
     return { replied: true };
   }
 
@@ -100,11 +130,11 @@ export async function handleIncoming(env, msg, nowMs = Date.now()) {
     reply = await runAssistant(env, text, history, nowMs);
   } catch (error) {
     console.error('Assistant failed:', error.message);
-    await sendText(env, owner, 'I could not reach my AI brain just now. Please try again in a minute.');
+    await sendText(env, owner, 'My brain just buffered 🙃 Try again in a minute?');
     return { replied: true, error: true };
   }
 
-  await sendText(env, owner, reply);
+  await sendText(env, owner, prefix ? `${prefix}\n\n${reply}` : reply);
   try {
     await saveHistory(env, history, text, reply);
   } catch (error) {
