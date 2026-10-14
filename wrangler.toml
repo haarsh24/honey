@@ -35,3 +35,6 @@ GROQ_MODEL = "llama-3.3-70b-versatile"
 GEMINI_MODEL = "gemini-flash-latest"
 # Morning briefing time in UTC (02:30 UTC = 08:00 IST).
 BRIEFING_TIME_UTC = "02:30"
+# Nightly journal prompt (16:00 UTC = 21:30 IST) and daily quiz (07:30 UTC = 13:00 IST).
+JOURNAL_TIME_UTC = "16:00"
+QUIZ_TIME_UTC = "07:30"

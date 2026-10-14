@@ -1,4 +1,5 @@
-import { runBriefing, runWeekly } from './briefing.js';
+import { runBriefing, runJournalPrompt, runWeekly } from './briefing.js';
+import { runDrill } from './learning.js';
 import { handleIncoming } from './handler.js';
 import { cleanup, runDueReminders } from './reminders.js';
 import { verifySignature } from './util.js';
@@ -88,6 +89,11 @@ export default {
           const minute = d.getUTCMinutes();
           const [bh, bm] = (env.BRIEFING_TIME_UTC || '02:30').split(':').map(Number); // 08:00 IST
           if (hour === bh && minute === bm) await runBriefing(env, now);
+          const at = (value, fallback) => (value || fallback).split(':').map(Number);
+          const [jh, jm] = at(env.JOURNAL_TIME_UTC, '16:00'); // 21:30 IST
+          const [qh, qm] = at(env.QUIZ_TIME_UTC, '07:30'); // 13:00 IST
+          if (hour === jh && minute === jm) await runJournalPrompt(env, now);
+          if (hour === qh && minute === qm) await runDrill(env, now);
           if (d.getUTCDay() === 0 && hour === 14 && minute === 30) await runWeekly(env, now); // Sunday 20:00 IST
           if (hour === 21 && minute === 5) await cleanup(env, now); // 02:35 IST
         } catch (error) {

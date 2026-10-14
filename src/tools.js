@@ -1,4 +1,5 @@
-import { formatIST, parseIST, startOfPeriod } from './time.js';
+import { getState, setState } from './db.js';
+import { formatIST, istParts, parseIST, startOfISTDay, startOfPeriod } from './time.js';
 
 const MAX_TEXT = 2000;
 const REPEATS = ['none', 'daily', 'weekly', 'monthly'];
@@ -21,6 +22,73 @@ function toLimit(value, fallback = 10) {
   return Math.min(n, 20);
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/** Small safe calculator: numbers, + - * / ^ and parentheses. */
+export function evaluate(source) {
+  const src = String(source ?? '').replace(/,/g, '').replace(/[×x]/g, '*').replace(/÷/g, '/');
+  if (src.length > 200) throw new Error('Expression too long');
+  const tokens = [];
+  const re = /\s*(\d+\.?\d*|\.\d+|[()+\-*\/^])/y;
+  let pos = 0;
+  while (pos < src.length) {
+    re.lastIndex = pos;
+    const m = re.exec(src);
+    if (!m) {
+      if (src.slice(pos).trim() === '') break;
+      throw new Error('Unsupported characters in expression');
+    }
+    tokens.push(m[1]);
+    pos = re.lastIndex;
+  }
+  let i = 0;
+  const peek = () => tokens[i];
+  const atom = () => {
+    const t = tokens[i++];
+    if (t === '(') {
+      const v = expr();
+      if (tokens[i++] !== ')') throw new Error('Missing closing bracket');
+      return v;
+    }
+    if (t === undefined || !/^[\d.]/.test(t)) throw new Error('Bad expression');
+    return parseFloat(t);
+  };
+  const unary = () => {
+    if (peek() === '-') { i++; return -unary(); }
+    if (peek() === '+') { i++; return unary(); }
+    return atom();
+  };
+  const power = () => {
+    const base = unary();
+    if (peek() === '^') { i++; return base ** power(); }
+    return base;
+  };
+  const term = () => {
+    let v = power();
+    while (peek() === '*' || peek() === '/') {
+      const op = tokens[i++];
+      const r = power();
+      if (op === '/' && r === 0) throw new Error('Division by zero');
+      v = op === '*' ? v * r : v / r;
+    }
+    return v;
+  };
+  function expr() {
+    let v = term();
+    while (peek() === '+' || peek() === '-') {
+      const op = tokens[i++];
+      const r = term();
+      v = op === '+' ? v + r : v - r;
+    }
+    return v;
+  }
+  const value = expr();
+  if (i !== tokens.length) throw new Error('Bad expression');
+  if (!Number.isFinite(value)) throw new Error('Result is not a finite number');
+  return value;
+}
+
 const round2 = (n) => Math.round(n * 100) / 100;
 const likeEscape = (s) => s.replace(/[\\%_]/g, '\\$&');
 
@@ -37,7 +105,19 @@ export const TOOL_HELP = `- save_note {"text": string}
 - expense_summary {"period": "today"|"week"|"month"|"all", "category"?: string}
 - add_task {"text": string}
 - list_tasks {}
-- complete_task {"id": number}`;
+- complete_task {"id": number}
+- save_meeting {"title": string, "summary": string, "action_items": string[]}
+- save_journal {"text": string, "date"?: "YYYY-MM-DD"}
+- search_journal {"query"?: string, "date"?: "YYYY-MM-DD", "limit"?: number}
+- calc_date {"date"?: "YYYY-MM-DD" (default today), "date2"?: "YYYY-MM-DD", "add_days"?: number}
+- calculate {"expression": string} (numbers, + - * / ^ and brackets)
+- convert_currency {"amount": number, "from": "USD", "to": "INR"}
+- add_countdown {"label": string, "date": "YYYY-MM-DD"}
+- list_countdowns {}
+- delete_countdown {"id": number}
+- learn_topic {"topic": string} (starts a daily quiz on that topic)
+- learn_off {}
+- quiz_done {"correct": boolean} (call after grading a quiz answer)`;
 
 export const TOOLS = {
   async save_note(env, args, { now }) {
@@ -234,6 +314,177 @@ export const TOOLS = {
       .bind(now, toId(args.id))
       .run();
     return { completed: result.meta.changes > 0 };
+  },
+  async save_meeting(env, args, { now }) {
+    const title = cleanText(args.title, 'title').slice(0, 100);
+    const summary = cleanText(args.summary, 'summary');
+    const items = (Array.isArray(args.action_items) ? args.action_items : [])
+      .filter((x) => typeof x === 'string' && x.trim())
+      .slice(0, 10);
+    const day = formatIST(now).slice(0, 10);
+    const note = await env.DB.prepare('INSERT INTO notes (text, created_at) VALUES (?, ?)')
+      .bind(`Meeting (${day}) ${title}: ${summary}`.slice(0, MAX_TEXT), now)
+      .run();
+    const taskIds = [];
+    for (const item of items) {
+      const r = await env.DB.prepare("INSERT INTO tasks (text, status, created_at) VALUES (?, 'open', ?)")
+        .bind(item.trim().slice(0, MAX_TEXT), now)
+        .run();
+      taskIds.push(r.meta.last_row_id);
+    }
+    return { saved: true, note_id: note.meta.last_row_id, tasks_added: taskIds.length, task_ids: taskIds };
+  },
+
+  async save_journal(env, args, { now }) {
+    const text = cleanText(args.text);
+    let day = formatIST(now).slice(0, 10);
+    if (typeof args.date === 'string' && args.date.trim()) {
+      if (parseIST(args.date, '12:00') === null) return { error: 'date must look like 2026-10-15' };
+      day = args.date.trim().slice(0, 10);
+    }
+    const result = await env.DB.prepare('INSERT INTO journal (day, text, created_at) VALUES (?, ?, ?)')
+      .bind(day, text, now)
+      .run();
+    await setState(env, 'journal_pending', '');
+    return { saved: true, id: result.meta.last_row_id, day };
+  },
+
+  async search_journal(env, args) {
+    const limit = toLimit(args.limit, 10);
+    const shape = (rows) => rows.map((r) => ({ id: r.id, day: r.day, text: r.text }));
+    if (typeof args.date === 'string' && args.date.trim()) {
+      const { results } = await env.DB.prepare('SELECT id, day, text FROM journal WHERE day = ? ORDER BY id')
+        .bind(args.date.trim().slice(0, 10))
+        .all();
+      return { count: results.length, entries: shape(results) };
+    }
+    const words = String(args.query ?? '').toLowerCase().split(/\s+/).filter((w) => w.length > 1).slice(0, 5);
+    if (words.length) {
+      const where = words.map(() => "LOWER(text) LIKE ? ESCAPE '\\'").join(' OR ');
+      const { results } = await env.DB.prepare(
+        `SELECT id, day, text FROM journal WHERE ${where} ORDER BY day DESC, id DESC LIMIT ?`,
+      )
+        .bind(...words.map((w) => `%${likeEscape(w)}%`), limit)
+        .all();
+      if (results.length) return { count: results.length, entries: shape(results) };
+      const recent = await env.DB.prepare('SELECT id, day, text FROM journal ORDER BY day DESC, id DESC LIMIT 30').all();
+      return {
+        count: 0,
+        note: 'No keyword match. These are the most recent entries; pick any that match by meaning, or say nothing was found.',
+        recent_entries: shape(recent.results),
+      };
+    }
+    const { results } = await env.DB.prepare('SELECT id, day, text FROM journal ORDER BY day DESC, id DESC LIMIT ?')
+      .bind(limit)
+      .all();
+    return { count: results.length, entries: shape(results) };
+  },
+
+  async calc_date(env, args, { now }) {
+    const today = startOfISTDay(now);
+    const base = args.date ? parseIST(String(args.date), '00:00') : today;
+    if (base === null) return { error: 'date must look like 2026-10-15' };
+    const fmt = (ms) => `${formatIST(ms).slice(0, 10)} (${WEEKDAYS[istParts(ms).wd]})`;
+    const out = { date: fmt(base), days_from_today: Math.round((base - today) / DAY_MS) };
+    if (args.date2) {
+      const other = parseIST(String(args.date2), '00:00');
+      if (other === null) return { error: 'date2 must look like 2026-10-15' };
+      const days = Math.round((other - base) / DAY_MS);
+      out.date2 = fmt(other);
+      out.days_between = days;
+      out.weeks_between = Math.round((days / 7) * 10) / 10;
+    }
+    if (args.add_days !== undefined) {
+      const n = Number(args.add_days);
+      if (!Number.isInteger(n) || Math.abs(n) > 36500) return { error: 'add_days must be a whole number' };
+      out.after_adding = fmt(base + n * DAY_MS);
+    }
+    return out;
+  },
+
+  async calculate(env, args) {
+    const value = evaluate(args.expression);
+    return { expression: String(args.expression), result: Math.round(value * 1e10) / 1e10 };
+  },
+
+  async convert_currency(env, args) {
+    const amount = Number(args.amount);
+    const from = String(args.from ?? '').toUpperCase();
+    const to = String(args.to ?? '').toUpperCase();
+    if (!Number.isFinite(amount)) return { error: 'amount must be a number' };
+    if (!/^[A-Z]{3}$/.test(from) || !/^[A-Z]{3}$/.test(to)) return { error: 'currency codes must be 3 letters, like USD' };
+    if (from === to) return { amount, from, to, result: amount, rate: 1 };
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    try {
+      const response = await fetch(`https://api.frankfurter.dev/v1/latest?base=${from}&symbols=${to}`, {
+        signal: controller.signal,
+      });
+      const data = await response.json().catch(() => ({}));
+      const rate = data?.rates?.[to];
+      if (!response.ok || typeof rate !== 'number') return { error: `Could not get a rate for ${from} to ${to}` };
+      return { amount, from, to, rate, result: Math.round(amount * rate * 100) / 100, rate_date: data.date, source: 'ECB reference rates' };
+    } catch {
+      return { error: 'Currency service did not respond. Try again in a bit.' };
+    } finally {
+      clearTimeout(timer);
+    }
+  },
+
+  async add_countdown(env, args, { now }) {
+    const label = cleanText(args.label, 'label').slice(0, 80);
+    const target = parseIST(String(args.date ?? ''), '00:00');
+    if (target === null) return { error: 'date must look like 2026-10-15' };
+    if (target < startOfISTDay(now)) return { error: 'That date is already in the past.' };
+    const result = await env.DB.prepare('INSERT INTO countdowns (label, target_at, created_at) VALUES (?, ?, ?)')
+      .bind(label, target, now)
+      .run();
+    return { saved: true, id: result.meta.last_row_id, days_to_go: Math.round((target - startOfISTDay(now)) / DAY_MS) };
+  },
+
+  async list_countdowns(env, args, { now }) {
+    const today = startOfISTDay(now);
+    const { results } = await env.DB.prepare(
+      'SELECT id, label, target_at FROM countdowns WHERE target_at >= ? ORDER BY target_at LIMIT 20',
+    )
+      .bind(today)
+      .all();
+    return {
+      count: results.length,
+      countdowns: results.map((r) => ({ id: r.id, label: r.label, date: formatIST(r.target_at).slice(0, 10), days_to_go: Math.round((r.target_at - today) / DAY_MS) })),
+    };
+  },
+
+  async delete_countdown(env, args) {
+    const result = await env.DB.prepare('DELETE FROM countdowns WHERE id = ?').bind(toId(args.id)).run();
+    return { deleted: result.meta.changes > 0 };
+  },
+
+  async learn_topic(env, args, { now }) {
+    const topic = cleanText(args.topic, 'topic').slice(0, 80);
+    await setState(env, 'learn_topic', topic);
+    await setState(env, 'quiz_recent', '[]');
+    return { saved: true, topic, note: 'A daily quiz question will arrive at 1:00 PM IST. The user can also send /quiz any time.' };
+  },
+
+  async learn_off(env) {
+    await setState(env, 'learn_topic', '');
+    await setState(env, 'quiz_pending', '');
+    return { stopped: true };
+  },
+
+  async quiz_done(env, args) {
+    let stats = { correct: 0, total: 0 };
+    try {
+      stats = { ...stats, ...JSON.parse((await getState(env, 'quiz_stats')) || '{}') };
+    } catch {
+      /* start fresh */
+    }
+    stats.total += 1;
+    if (args.correct === true || args.correct === 'true') stats.correct += 1;
+    await setState(env, 'quiz_stats', JSON.stringify(stats));
+    await setState(env, 'quiz_pending', '');
+    return { recorded: true, score: `${stats.correct}/${stats.total}` };
   },
 };
 

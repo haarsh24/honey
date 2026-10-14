@@ -39,6 +39,12 @@ async function handleVoice(env, media) {
   });
   const text = clip(transcript, 1500);
   if (!text || text === 'NO_SPEECH') return { reply: "All I heard was silence 🦗 Try that voice note again?" };
+  if (text.length > 350) {
+    return {
+      text: `[Long voice note, probably meeting notes or a brain dump. Follow the meeting-notes rule.] ${text}`,
+      prefix: `🎤 "${text.slice(0, 160)}…"`,
+    };
+  }
   return { text, prefix: `🎤 "${text}"` };
 }
 

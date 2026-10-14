@@ -4,6 +4,7 @@ import { sendText } from './whatsapp.js';
 import { normalizePhone } from './util.js';
 import { formatIST } from './time.js';
 import { handleMedia } from './media.js';
+import { quizContext, quizNow } from './learning.js';
 
 const MEDIA_TYPES = ['audio', 'image', 'document'];
 
@@ -15,11 +16,15 @@ const HELP_TEXT = `Your personal sidekick here 😎 I can help with:
 - Expenses: "spent 450 on lunch", "how much did I spend this week?"
 - Tasks: "add task: renew insurance", "my tasks"
 - Writing: "draft an email asking my manager for leave on Friday"
+- Meeting notes: send a long voice note and I'll make a summary and action items
+- Journal: "journal: great day today", "what happened last Tuesday?"
+- Learning: "quiz me on SQL joins", then /quiz any time
+- Quick answers: dates, countdowns ("days till Diwali"), currency, maths, translate or rewrite a message
 - Voice notes: just talk, I'll understand and do it (English, Hindi or Hinglish)
 - Photos: send a receipt and I'll log the expense; other photos I'll read and summarise
 - PDFs: send a bill or document, I'll summarise it and set reminders for due dates
 
-Commands: /help, /reset (forget this chat's context), /briefing on|off (morning summary at 8:00 and Sunday spending recap).
+Commands: /help, /reset (forget this chat's context), /quiz, /briefing on|off (morning summary and Sunday review), /journal on|off (nightly prompt).
 Please don't send passwords, card numbers or ID numbers.`;
 
 export function ownerNumber(env) {
@@ -43,6 +48,22 @@ async function saveHistory(env, history, userText, reply) {
     { role: 'assistant', content: reply.slice(0, 500) },
   ].slice(-HISTORY_LIMIT);
   await setState(env, 'history', JSON.stringify(next));
+}
+
+const JOURNAL_WINDOW_MS = 4 * 60 * 60 * 1000;
+
+/** Extra instructions for the assistant when a journal prompt or quiz question is waiting for a reply. */
+async function extraContext(env, nowMs) {
+  const parts = [];
+  const pending = Number((await getState(env, 'journal_pending')) || 0);
+  if (pending && nowMs - pending < JOURNAL_WINDOW_MS) {
+    parts.push(
+      "A nightly journal prompt was sent to the user. If their message is a reflection on their day (not a command or a question about something else), call save_journal with their own words, then reply with a warm one-line reaction.",
+    );
+  }
+  const quiz = await quizContext(env, nowMs);
+  if (quiz) parts.push(quiz);
+  return parts.join('\n');
 }
 
 /** Reminders that could not be sent (window closed, no template) are delivered on the next message. */
@@ -114,6 +135,20 @@ export async function handleIncoming(env, msg, nowMs = Date.now()) {
     await sendText(env, owner, command.endsWith('on') ? 'Morning briefing is on. Expect me at 8:00 AM IST with coffee-level energy ☕' : 'Morning briefing is off. I will stay quiet until you call me 🤐');
     return { replied: true };
   }
+  if (command === '/journal on' || command === '/journal off') {
+    await setState(env, 'journal_enabled', command.endsWith('on') ? 'on' : 'off');
+    await sendText(env, owner, command.endsWith('on') ? 'Nightly journal prompt is on (9:30 PM IST) 🌙' : 'Nightly journal prompt is off.');
+    return { replied: true };
+  }
+  if (command === '/quiz') {
+    try {
+      await sendText(env, owner, await quizNow(env, nowMs));
+    } catch (error) {
+      console.error('Quiz failed:', error.message);
+      await sendText(env, owner, 'My quiz brain tripped 🥴 Try /quiz again in a minute.');
+    }
+    return { replied: true };
+  }
   if (command === '/help' || command === 'help') {
     await sendText(env, owner, HELP_TEXT);
     return { replied: true };
@@ -127,7 +162,7 @@ export async function handleIncoming(env, msg, nowMs = Date.now()) {
   const history = await loadHistory(env);
   let reply;
   try {
-    reply = await runAssistant(env, text, history, nowMs);
+    reply = await runAssistant(env, text, history, nowMs, await extraContext(env, nowMs));
   } catch (error) {
     console.error('Assistant failed:', error.message);
     await sendText(env, owner, 'My brain just buffered 🙃 Try again in a minute?');

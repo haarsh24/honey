@@ -50,14 +50,15 @@ test('briefing: text inside the window, template outside, once per day, can be t
   assert.equal(sent.length, 0);
 });
 
-test('weekly summary only when something was spent', async () => {
+test('weekly review only when there was activity', async () => {
   const sent = mockWorld();
   const env = makeEnv();
   const sunday = parseIST('2026-10-18 20:00');
-  assert.deepEqual(await runWeekly(env, sunday), { skipped: 'no-expenses' });
+  await env.DB.prepare("INSERT INTO state (key, value) VALUES ('last_inbound_at', ?)").bind(String(sunday - 3600e3)).run();
+  assert.deepEqual(await runWeekly(env, sunday), { skipped: 'no-activity' });
   await TOOLS.log_expense(env, { amount: 500, category: 'food' }, { now: parseIST('2026-10-16 12:00') });
   await runWeekly(env, sunday);
-  assert.match(bodies(sent)[0], /Weekly spending: ₹500 across 1 entries. Top: food ₹500/);
+  assert.match(bodies(sent)[0], /Spending: ₹500 across 1 entries. Top: food ₹500/);
 });
 
 test('cron schedule triggers briefing at 02:30 UTC and tolerates seconds', async () => {

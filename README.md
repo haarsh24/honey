@@ -75,6 +75,14 @@ Needs the `GEMINI_KEY` secret (free key from aistudio.google.com).
 - **Briefing:** 8:00 AM IST daily (reminders, open tasks, yesterday's spend) and a Sunday 8:00 PM recap. Turn off with `/briefing off`.
   Outside the 24-hour window these go through the `reminder` template, so approve it first (section 4).
 
+## More things it can do
+
+- **Meeting notes:** send a long voice note or type "meeting notes: ...". It saves a summary note and turns action items into tasks.
+- **Journal:** at 9:30 PM IST it asks how your day went (only if you chatted in the last 24 hours, so it stays free). Reply by text or voice. Ask "what happened last Tuesday?" any time. `/journal off` stops the nudge.
+- **Weekly review:** Sunday 8 PM IST: spending, finished tasks, failed reminders, journal count, quiz score and one suggestion.
+- **Learning:** "quiz me on SQL joins" starts a daily question at 1 PM IST. Answer it and the bot grades you. `/quiz` gives one now.
+- **Quick answers:** day-of-week and date maths, countdowns ("days till Goa trip", shown in the morning briefing), currency conversion (ECB reference rates), calculator, translate or rewrite any message.
+
 Gemini's free tier may use inputs for Google's training, so keep sensitive photos and documents out.
 
 ## Troubleshooting
