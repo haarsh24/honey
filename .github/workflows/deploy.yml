@@ -26,6 +26,7 @@ jobs:
       VERIFY_TOKEN: ${{ secrets.VERIFY_TOKEN || vars.VERIFY_TOKEN }}
       OWNER_NUMBER: ${{ secrets.OWNER_NUMBER || vars.OWNER_NUMBER }}
       WABA_ID: ${{ vars.WHATSAPP_BUSINESS_ACCOUNT_ID || vars.WHATSAPP_BUISNESS_ACCOUNT_ID || secrets.WHATSAPP_BUSINESS_ACCOUNT_ID || secrets.WHATSAPP_BUISNESS_ACCOUNT_ID }}
+      META_APP_ID: ${{ secrets.WHATSAPP_APP_ID || vars.WHATSAPP_APP_ID }}
       GROQ_KEY: ${{ secrets.GROQ_KEY }}
       GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
     steps:
@@ -99,3 +100,18 @@ jobs:
           echo "Subscribe response: $out" | head -c 400; echo
           echo "$out" | grep -q '"success":true' || { echo "::error::Subscribe failed: $(echo "$out" | head -c 300)"; exit 1; }
           echo "Current subscriptions:"; curl -s -H "Authorization: Bearer ${WHATSAPP_TOKEN}" "$g" | sed -E 's/"access_token":"[^"]*"/"access_token":"***"/g' | head -c 600; echo
+
+      - name: Subscribe the Meta app to the messages field
+        run: |
+          if [ -z "$META_APP_ID" ]; then echo "::warning::No WHATSAPP_APP_ID found, skipping"; exit 0; fi
+          sub=$(curl -s -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{console.log(JSON.parse(d).result?.subdomain||"")}catch{console.log("")}})')
+          url="https://wa-assistant.${sub}.workers.dev/webhook"
+          api="https://graph.facebook.com/${GRAPH_VERSION:-v25.0}/${META_APP_ID}/subscriptions"
+          tok="${META_APP_ID}|${APP_SECRET}"
+          out=$(curl -s -X POST "$api" --data-urlencode "access_token=${tok}" --data-urlencode "object=whatsapp_business_account" --data-urlencode "callback_url=${url}" --data-urlencode "verify_token=${VERIFY_TOKEN}" --data-urlencode "fields=messages")
+          echo "::notice title=app subscribe::$(echo "$out" | head -c 300)"
+          echo "$out" | grep -q '"success":true' || { echo "::error::App subscribe failed: $(echo "$out" | head -c 300)"; exit 1; }
+          list=$(curl -s -G "$api" --data-urlencode "access_token=${tok}" | sed -E 's/"verify_token":"[^"]*"//g')
+          echo "::notice title=app subscriptions::$(echo "$list" | head -c 600)"
+          wlist=$(curl -s -H "Authorization: Bearer ${WHATSAPP_TOKEN}" "https://graph.facebook.com/${GRAPH_VERSION:-v25.0}/${WABA_ID}/subscribed_apps")
+          echo "::notice title=waba subscribed_apps::$(echo "$wlist" | head -c 600)"
