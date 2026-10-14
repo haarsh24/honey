@@ -88,9 +88,14 @@ jobs:
           npx wrangler secret bulk "$RUNNER_TEMP/worker-secrets.json"
           rm -f "$RUNNER_TEMP/worker-secrets.json"
 
-      - name: Subscribe the Meta app to your WhatsApp account (so messages reach the webhook)
+      - name: Subscribe the Meta app to your WhatsApp account and point it at this Worker
         run: |
           if [ -z "$WABA_ID" ]; then echo "::warning::No WhatsApp business account id found, skipping"; exit 0; fi
-          out=$(curl -s -X POST -H "Authorization: Bearer ${WHATSAPP_TOKEN}" "https://graph.facebook.com/${GRAPH_VERSION:-v25.0}/${WABA_ID}/subscribed_apps")
-          echo "$out" | sed -E 's/"access_token":"[^"]*"/"access_token":"***"/g'
+          sub=$(curl -s -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{console.log(JSON.parse(d).result?.subdomain||"")}catch{console.log("")}})')
+          url="https://wa-assistant.${sub}.workers.dev/webhook"
+          echo "Webhook URL: $url"
+          g="https://graph.facebook.com/${GRAPH_VERSION:-v25.0}/${WABA_ID}/subscribed_apps"
+          out=$(curl -s -X POST -H "Authorization: Bearer ${WHATSAPP_TOKEN}" --data-urlencode "override_callback_uri=${url}" --data-urlencode "verify_token=${VERIFY_TOKEN}" "$g")
+          echo "Subscribe response: $out" | head -c 400; echo
           echo "$out" | grep -q '"success":true' || { echo "::error::Subscribe failed: $(echo "$out" | head -c 300)"; exit 1; }
+          echo "Current subscriptions:"; curl -s -H "Authorization: Bearer ${WHATSAPP_TOKEN}" "$g" | sed -E 's/"access_token":"[^"]*"/"access_token":"***"/g' | head -c 600; echo
