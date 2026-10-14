@@ -55,6 +55,21 @@ jobs:
       - name: Insert D1 database id into wrangler.toml
         run: sed -i "s/D1_DATABASE_ID_PLACEHOLDER/${D1_DATABASE_ID}/" wrangler.toml
 
+      - name: Make sure a workers.dev subdomain exists
+        run: |
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain"
+          auth="Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+          current=$(curl -s -H "$auth" "$api" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{console.log(JSON.parse(d).result?.subdomain||"")}catch{console.log("")}})')
+          if [ -n "$current" ]; then
+            echo "workers.dev subdomain already set: $current"
+          else
+            for name in "${WORKERS_SUBDOMAIN:-harsh24}" "harsh24-bot" "harsh24-wa-$RANDOM"; do
+              out=$(curl -s -X PUT -H "$auth" -H "Content-Type: application/json" --data "{\"subdomain\":\"$name\"}" "$api")
+              if echo "$out" | grep -q '"success":true'; then echo "Registered subdomain: $name"; break; fi
+              echo "Could not register $name: $out"
+            done
+          fi
+
       - name: Apply database migrations
         run: npx wrangler d1 migrations apply DB --remote
 
