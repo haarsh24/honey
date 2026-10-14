@@ -42,7 +42,10 @@ export default {
       if (request.method === 'POST') {
         const raw = await request.text();
         const valid = await verifySignature(raw, request.headers.get('x-hub-signature-256'), env.APP_SECRET);
-        if (!valid) return new Response('Invalid signature', { status: 401 });
+        if (!valid) {
+          console.error('Webhook rejected: signature mismatch. Check that APP_SECRET is the Meta App Secret.');
+          return new Response('Invalid signature', { status: 401 });
+        }
 
         let payload;
         try {
@@ -50,8 +53,10 @@ export default {
         } catch {
           return new Response('Bad request', { status: 400 });
         }
+        const incoming = extractMessages(payload);
+        console.log(`Webhook received: ${incoming.length} message(s)`);
         // Reply 200 immediately; do the work in the background.
-        for (const message of extractMessages(payload)) ctx.waitUntil(processMessage(env, message));
+        for (const message of incoming) ctx.waitUntil(processMessage(env, message));
         return new Response('OK', { status: 200 });
       }
       return new Response('Method not allowed', { status: 405 });
