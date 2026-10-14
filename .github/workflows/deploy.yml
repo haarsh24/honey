@@ -25,6 +25,7 @@ jobs:
       PHONE_NUMBER_ID: ${{ secrets.PHONE_NUMBER_ID || vars.PHONE_NUMBER_ID || vars.WHATSAPP_PHONE_NUMBER_ID || secrets.WHATSAPP_PHONE_NUMBER_ID }}
       VERIFY_TOKEN: ${{ secrets.VERIFY_TOKEN || vars.VERIFY_TOKEN }}
       OWNER_NUMBER: ${{ secrets.OWNER_NUMBER || vars.OWNER_NUMBER }}
+      WABA_ID: ${{ vars.WHATSAPP_BUSINESS_ACCOUNT_ID || vars.WHATSAPP_BUISNESS_ACCOUNT_ID || secrets.WHATSAPP_BUSINESS_ACCOUNT_ID || secrets.WHATSAPP_BUISNESS_ACCOUNT_ID }}
       GROQ_KEY: ${{ secrets.GROQ_KEY }}
       GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
     steps:
@@ -86,3 +87,10 @@ jobs:
           ' > "$RUNNER_TEMP/worker-secrets.json"
           npx wrangler secret bulk "$RUNNER_TEMP/worker-secrets.json"
           rm -f "$RUNNER_TEMP/worker-secrets.json"
+
+      - name: Subscribe the Meta app to your WhatsApp account (so messages reach the webhook)
+        run: |
+          if [ -z "$WABA_ID" ]; then echo "::warning::No WhatsApp business account id found, skipping"; exit 0; fi
+          out=$(curl -s -X POST -H "Authorization: Bearer ${WHATSAPP_TOKEN}" "https://graph.facebook.com/${GRAPH_VERSION:-v25.0}/${WABA_ID}/subscribed_apps")
+          echo "$out" | sed -E 's/"access_token":"[^"]*"/"access_token":"***"/g'
+          echo "$out" | grep -q '"success":true' || { echo "::error::Subscribe failed: $(echo "$out" | head -c 300)"; exit 1; }
