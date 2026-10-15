@@ -117,3 +117,14 @@ jobs:
           echo "::notice title=app subscriptions::$(echo "$list" | head -c 600)"
           wlist=$(curl -s -H "Authorization: Bearer ${WHATSAPP_TOKEN}" "https://graph.facebook.com/${GRAPH_VERSION:-v25.0}/${WABA_ID}/subscribed_apps")
           echo "::notice title=waba subscribed_apps::$(echo "$wlist" | head -c 600)"
+
+      - name: Health check (WhatsApp token and phone number)
+        continue-on-error: true
+        run: |
+          META_APP_ID=$(printf %s "$META_APP_ID" | tr -d '[:space:]')
+          v="${GRAPH_VERSION:-v25.0}"
+          dbg=$(curl -s -G "https://graph.facebook.com/${v}/debug_token" --data-urlencode "input_token=${WHATSAPP_TOKEN}" --data-urlencode "access_token=${META_APP_ID}|${APP_SECRET}")
+          echo "::notice title=token debug::$(echo "$dbg" | head -c 500)"
+          ph=$(curl -s -H "Authorization: Bearer ${WHATSAPP_TOKEN}" "https://graph.facebook.com/${v}/${PHONE_NUMBER_ID}?fields=display_phone_number,verified_name,quality_rating")
+          echo "::notice title=phone check::$(echo "$ph" | head -c 400)"
+          echo "::notice title=owner number::length ${#OWNER_NUMBER}, starts $(printf %s "$OWNER_NUMBER" | head -c 4)"
