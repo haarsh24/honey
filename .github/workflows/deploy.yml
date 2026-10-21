@@ -129,16 +129,16 @@ jobs:
           echo "::notice title=phone check::$(echo "$ph" | head -c 400)"
           echo "::notice title=owner number::length ${#OWNER_NUMBER}, starts $(printf %s "$OWNER_NUMBER" | head -c 4)"
 
-      - name: Diagnostics (Gemini search, text-to-speech, prices)
+      - name: Diagnostics (Gemini quota and models)
         continue-on-error: true
         run: |
-          for model in gemini-flash-latest gemini-2.5-flash; do
-            code=$(curl -s -o "$RUNNER_TEMP/g.json" -w '%{http_code}' -X POST "https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent" -H "x-goog-api-key: ${GEMINI_KEY}" -H 'Content-Type: application/json' --data '{"contents":[{"parts":[{"text":"Search the web: latest petrol price in Ranchi today. Answer in one line."}]}],"tools":[{"google_search":{}}]}')
-            echo "::notice title=gemini search ${model}::HTTP ${code} $(head -c 350 "$RUNNER_TEMP/g.json" | tr '\n' ' ')"
+          H="x-goog-api-key: ${GEMINI_KEY}"
+          ml=$(curl -s -H "$H" "https://generativelanguage.googleapis.com/v1beta/models?pageSize=100" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{console.log(JSON.parse(d).models.map(m=>m.name.replace("models/","")).filter(n=>/flash|lite|pro/.test(n)&&!/tts|image|embed|live|audio|robotics/.test(n)).join(", "))}catch(e){console.log("list failed")}})')
+          echo "::notice title=gemini models::${ml}" | head -c 900
+          for model in gemini-flash-latest gemini-flash-lite-latest; do
+            code=$(curl -s -o "$RUNNER_TEMP/p.json" -w '%{http_code}' -X POST "https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent" -H "$H" -H 'Content-Type: application/json' --data '{"contents":[{"parts":[{"text":"Say hi"}]}]}')
+            echo "::notice title=plain ${model}::HTTP ${code} $(head -c 200 "$RUNNER_TEMP/p.json" | tr '\n' ' ')"
           done
-          code=$(curl -s -o "$RUNNER_TEMP/t.json" -w '%{http_code}' -X POST "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/myshell-ai/melotts" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H 'Content-Type: application/json' --data '{"prompt":"Hello there","lang":"en"}')
-          echo "::notice title=tts::HTTP ${code} $(head -c 200 "$RUNNER_TEMP/t.json" | tr '\n' ' ')"
-          code=$(curl -s -o "$RUNNER_TEMP/y.json" -w '%{http_code}' -A 'Mozilla/5.0 (compatible; wa-assistant)' "https://query1.finance.yahoo.com/v8/finance/chart/RELIANCE.NS?range=1d&interval=1d")
-          echo "::notice title=yahoo::HTTP ${code} $(head -c 150 "$RUNNER_TEMP/y.json" | tr '\n' ' ')"
-          code=$(curl -s -o "$RUNNER_TEMP/m.json" -w '%{http_code}' "https://api.mfapi.in/mf/search?q=parag")
-          echo "::notice title=mfapi::HTTP ${code} $(head -c 150 "$RUNNER_TEMP/m.json" | tr '\n' ' ')"
+          code=$(curl -s -o "$RUNNER_TEMP/g.json" -w '%{http_code}' -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent" -H "$H" -H 'Content-Type: application/json' --data '{"contents":[{"parts":[{"text":"petrol price Ranchi today"}]}],"tools":[{"google_search":{}}]}')
+          detail=$(node -e 'try{const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));console.log(JSON.stringify((j.error?.details||[]).map(d=>d.violations||d.retryDelay||d["@type"])).slice(0,600))}catch(e){console.log("n/a")}' "$RUNNER_TEMP/g.json")
+          echo "::notice title=search detail::HTTP ${code} ${detail}"
