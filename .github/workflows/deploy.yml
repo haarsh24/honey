@@ -150,3 +150,14 @@ jobs:
             for (let i = 0; i < n; i++) buf.writeInt16LE(Math.round(8000 * Math.sin((2 * Math.PI * 440 * i) / rate)), 44 + i * 2);
             try { show("audio", await gemini(env, { media: { bytes: new Uint8Array(buf), mime: "audio/wav" }, prompt: "Transcribe this audio. If there is no speech output exactly NO_SPEECH." })); } catch (e) { show("audio error", e.message); }
           '
+
+      - name: Diagnostics (key format)
+        continue-on-error: true
+        run: |
+          body='{"contents":[{"role":"user","parts":[{"text":"Say hi"}]}]}'
+          code=$(curl -s -o "$RUNNER_TEMP/a.json" -w '%{http_code}' -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${GEMINI_KEY}" -H 'Content-Type: application/json' --data "$body")
+          echo "::notice title=key as query param::HTTP ${code} $(head -c 250 "$RUNNER_TEMP/a.json" | tr '\n' ' ')"
+          code=$(curl -s -o "$RUNNER_TEMP/b.json" -w '%{http_code}' -X POST "https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}" -H 'Content-Type: application/json' --data "$body")
+          echo "::notice title=vertex express::HTTP ${code} $(head -c 250 "$RUNNER_TEMP/b.json" | tr '\n' ' ')"
+          code=$(curl -s -o "$RUNNER_TEMP/c.json" -w '%{http_code}' "https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_KEY}")
+          echo "::notice title=list models::HTTP ${code} $(head -c 250 "$RUNNER_TEMP/c.json" | tr '\n' ' ')"
