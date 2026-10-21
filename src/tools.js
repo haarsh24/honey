@@ -1,5 +1,6 @@
 import { getState, setState } from './db.js';
 import { formatIST, istParts, parseIST, startOfISTDay, startOfPeriod } from './time.js';
+import { geminiWeb } from './gemini.js';
 
 const MAX_TEXT = 2000;
 const REPEATS = ['none', 'daily', 'weekly', 'monthly'];
@@ -117,7 +118,9 @@ export const TOOL_HELP = `- save_note {"text": string}
 - delete_countdown {"id": number}
 - learn_topic {"topic": string} (starts a daily quiz on that topic)
 - learn_off {}
-- quiz_done {"correct": boolean} (call after grading a quiz answer)`;
+- quiz_done {"correct": boolean} (call after grading a quiz answer)
+- web_search {"query": string} (live Google search: news, prices, facts, anything current)
+- read_url {"url": string, "question"?: string} (opens a web page the user shared and answers from it)`;
 
 export const TOOLS = {
   async save_note(env, args, { now }) {
@@ -486,6 +489,26 @@ export const TOOLS = {
     await setState(env, 'quiz_pending', '');
     return { recorded: true, score: `${stats.correct}/${stats.total}` };
   },
+};
+
+TOOLS.web_search = async (env, args) => {
+  const query = cleanText(args.query);
+  const { text, sources } = await geminiWeb(env, {
+    kind: 'search',
+    prompt: `Search the web and answer briefly and factually (under 120 words). Include dates or numbers where relevant.\n\nQuestion: ${query}`,
+  });
+  return { answer: text, sources };
+};
+
+TOOLS.read_url = async (env, args) => {
+  const url = String(args.url ?? '').trim();
+  if (!/^https?:\/\/\S+$/i.test(url)) return { error: 'url must start with http:// or https://' };
+  const question = args.question ? cleanText(args.question) : 'Summarise the main points in 5 short bullets.';
+  const { text } = await geminiWeb(env, {
+    kind: 'url',
+    prompt: `Read this page: ${url}\n\nTask: ${question}\nBe brief (under 150 words) and only use what the page says.`,
+  });
+  return { url, answer: text };
 };
 
 export async function runTool(env, name, args, ctx) {

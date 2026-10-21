@@ -83,6 +83,8 @@ Needs the `GEMINI_KEY` secret (free key from aistudio.google.com).
 - **Learning:** "quiz me on SQL joins" starts a daily question at 1 PM IST. Answer it and the bot grades you. `/quiz` gives one now.
 - **Quick answers:** day-of-week and date maths, countdowns ("days till Goa trip", shown in the morning briefing), currency conversion (ECB reference rates), calculator, translate or rewrite any message.
 
+- **Web search and links:** "search the latest petrol price in Ranchi" uses Google Search through Gemini. Paste a link with a question ("summarise this https://...") and it reads the page and answers.
+
 Gemini's free tier may use inputs for Google's training, so keep sensitive photos and documents out.
 
 ## Troubleshooting
