@@ -119,7 +119,7 @@ export async function handleIncoming(env, msg, nowMs = Date.now()) {
       prefix = result.prefix ?? '';
     } catch (error) {
       console.error('Media handling failed:', error.message);
-      let message = "Couldn't make sense of that file just now 😵 Try again, or just type it out?";
+      let message = `Couldn't make sense of that file just now 😵 Try again, or just type it out? (${String(error.message).slice(0, 160)})`;
       if (error.code === 'NO_KEY') message = 'Voice notes, photos and PDFs need the GEMINI_KEY secret to be set up first.';
       else if (error.code === 'TOO_LARGE') message = 'That file is too large for me. Please send a smaller one.';
       await sendText(env, owner, message);
