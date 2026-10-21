@@ -129,16 +129,14 @@ jobs:
           echo "::notice title=phone check::$(echo "$ph" | head -c 400)"
           echo "::notice title=owner number::length ${#OWNER_NUMBER}, starts $(printf %s "$OWNER_NUMBER" | head -c 4)"
 
-      - name: Diagnostics (Gemini quota and models)
+      - name: Diagnostics (which Gemini models allow search and url reading)
         continue-on-error: true
         run: |
           H="x-goog-api-key: ${GEMINI_KEY}"
-          ml=$(curl -s -H "$H" "https://generativelanguage.googleapis.com/v1beta/models?pageSize=100" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{console.log(JSON.parse(d).models.map(m=>m.name.replace("models/","")).filter(n=>/flash|lite|pro/.test(n)&&!/tts|image|embed|live|audio|robotics/.test(n)).join(", "))}catch(e){console.log("list failed")}})')
-          echo "::notice title=gemini models::${ml}" | head -c 900
-          for model in gemini-flash-latest gemini-flash-lite-latest; do
-            code=$(curl -s -o "$RUNNER_TEMP/p.json" -w '%{http_code}' -X POST "https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent" -H "$H" -H 'Content-Type: application/json' --data '{"contents":[{"parts":[{"text":"Say hi"}]}]}')
-            echo "::notice title=plain ${model}::HTTP ${code} $(head -c 200 "$RUNNER_TEMP/p.json" | tr '\n' ' ')"
+          for model in gemini-flash-lite-latest gemini-2.5-flash-lite gemini-3.1-flash-lite gemini-3.5-flash-lite gemini-3-flash-preview gemini-3.5-flash gemini-3.8-flash gemini-pro-latest; do
+            for tool in google_search url_context; do
+              if [ "$tool" = url_context ]; then t='Summarise https://en.wikipedia.org/wiki/Ranchi in one line'; else t='petrol price in Ranchi today'; fi
+              code=$(curl -s -o "$RUNNER_TEMP/g.json" -w '%{http_code}' -X POST "https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent" -H "$H" -H 'Content-Type: application/json' --data "{\"contents\":[{\"parts\":[{\"text\":\"$t\"}]}],\"tools\":[{\"$tool\":{}}]}")
+              echo "::notice title=${model} ${tool}::HTTP ${code} $(head -c 120 "$RUNNER_TEMP/g.json" | tr '\n' ' ')"
+            done
           done
-          code=$(curl -s -o "$RUNNER_TEMP/g.json" -w '%{http_code}' -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent" -H "$H" -H 'Content-Type: application/json' --data '{"contents":[{"parts":[{"text":"petrol price Ranchi today"}]}],"tools":[{"google_search":{}}]}')
-          detail=$(node -e 'try{const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));console.log(JSON.stringify((j.error?.details||[]).map(d=>d.violations||d.retryDelay||d["@type"])).slice(0,600))}catch(e){console.log("n/a")}' "$RUNNER_TEMP/g.json")
-          echo "::notice title=search detail::HTTP ${code} ${detail}"
