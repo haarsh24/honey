@@ -71,3 +71,18 @@ export async function sendAudio(env, to, bytes, mime = 'audio/mpeg') {
   }
   return callGraph(env, { messaging_product: 'whatsapp', to, type: 'audio', audio: { id: uploaded.id } });
 }
+
+/** Marks the owner's message as read and shows "typing..." while we think. Best effort, never throws. */
+export async function showTyping(env, messageId) {
+  if (env.TYPING_INDICATOR === 'off' || !messageId) return;
+  try {
+    await callGraph(env, {
+      messaging_product: 'whatsapp',
+      status: 'read',
+      message_id: messageId,
+      typing_indicator: { type: 'text' },
+    });
+  } catch (error) {
+    console.error('Typing indicator failed:', error.message);
+  }
+}

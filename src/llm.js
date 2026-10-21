@@ -4,6 +4,8 @@
 
 const TIMEOUT_MS = 25000;
 const MAX_TOKENS = 600;
+const TEMPERATURE = 0.35; // low enough for reliable tool calls, high enough for jokes
+const WORKERS_AI_TIMEOUT_MS = 20000; // then fall through to the next provider
 
 async function openAICompatible({ url, key, model, messages, name }) {
   if (!key) throw new Error(`${name} is not configured`);
@@ -13,7 +15,7 @@ async function openAICompatible({ url, key, model, messages, name }) {
     const response = await fetch(url, {
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages, temperature: 0.2, max_tokens: MAX_TOKENS }),
+      body: JSON.stringify({ model, messages, temperature: TEMPERATURE, max_tokens: MAX_TOKENS }),
       signal: controller.signal,
     });
     const data = await response.json().catch(() => ({}));
@@ -31,7 +33,16 @@ async function openAICompatible({ url, key, model, messages, name }) {
 async function workersAI(env, messages) {
   if (!env.AI) throw new Error('workers-ai binding missing');
   const model = env.LLM_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
-  const out = await env.AI.run(model, { messages, max_tokens: MAX_TOKENS, temperature: 0.2 });
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error('workers-ai timed out')), WORKERS_AI_TIMEOUT_MS);
+  });
+  let out;
+  try {
+    out = await Promise.race([env.AI.run(model, { messages, max_tokens: MAX_TOKENS, temperature: TEMPERATURE }), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
   let text =
     typeof out === 'string'
       ? out

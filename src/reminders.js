@@ -1,4 +1,4 @@
-import { getState } from './db.js';
+import { getState, setState } from './db.js';
 import { sendTemplate, sendText } from './whatsapp.js';
 import { nextOccurrence } from './time.js';
 import { ownerNumber } from './handler.js';
@@ -13,7 +13,7 @@ async function deliver(env, to, text, inWindow) {
 
   if (!inWindow) return useTemplate();
   try {
-    return await sendText(env, to, `⏰ Reminder: ${text}`);
+    return await sendText(env, to, `⏰ Reminder: ${text}\n(Reply "snooze 10" to push it)`);
   } catch (error) {
     if (error.code === REENGAGEMENT_ERROR) return useTemplate();
     throw error;
@@ -38,6 +38,7 @@ export async function runDueReminders(env, nowMs = Date.now()) {
     try {
       await deliver(env, to, r.text, inWindow);
       sent++;
+      await setState(env, 'last_reminder', JSON.stringify({ id: r.id, text: r.text }));
       if (r.repeat !== 'none') {
         const next = nextOccurrence(r.due_at, r.repeat, nowMs);
         await env.DB.prepare('UPDATE reminders SET due_at = ?, attempts = 0, sent_at = ? WHERE id = ?')

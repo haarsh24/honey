@@ -161,3 +161,16 @@ jobs:
           echo "::notice title=vertex express::HTTP ${code} $(head -c 250 "$RUNNER_TEMP/b.json" | tr '\n' ' ')"
           code=$(curl -s -o "$RUNNER_TEMP/c.json" -w '%{http_code}' "https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_KEY}")
           echo "::notice title=list models::HTTP ${code} $(head -c 250 "$RUNNER_TEMP/c.json" | tr '\n' ' ')"
+
+      - name: Persona sample (real prompt, Gemini as the model)
+        continue-on-error: true
+        run: |
+          node --input-type=module -e '
+            import { runAssistant } from "./src/assistant.js";
+            const env = { GEMINI_KEY: process.env.GEMINI_KEY, LLM_PROVIDERS: "gemini", DB: null };
+            const now = Date.now();
+            const show = (t, v) => console.log(`::notice title=${t}::${String(v).replace(/\s+/g, " ").slice(0, 400)}`);
+            for (const q of ["haha I skipped the gym again this week", "I am really stressed, my boss is on my case", "write a polite email asking for leave on Friday"]) {
+              try { show("persona: " + q.slice(0, 24), await runAssistant(env, q, [], now)); } catch (e) { show("persona error", e.message); }
+            }
+          '

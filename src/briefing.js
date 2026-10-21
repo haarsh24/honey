@@ -5,6 +5,8 @@ import { inReplyWindow, sendProactive } from './outbound.js';
 import { sendText } from './whatsapp.js';
 import { describeIST, formatIST, startOfISTDay, startOfPeriod } from './time.js';
 import { TOOLS } from './tools.js';
+import { morningOpener, todaysWeather, weatherLine } from './extras.js';
+import { habitStats } from './habits.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const money = (n) => `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
@@ -39,7 +41,25 @@ export async function buildBriefing(env, nowMs) {
       .all()
   ).results;
 
-  const lines = [`Good morning! ☀️ ${describeIST(nowMs).slice(0, 10)}`];
+  let weather = null;
+  try {
+    weather = weatherLine(await todaysWeather(env));
+  } catch {
+    /* weather is a bonus */
+  }
+  const streaks = [];
+  try {
+    const today = formatIST(nowMs).slice(0, 10);
+    for (const h of (await env.DB.prepare('SELECT id, name FROM habits LIMIT 10').all()).results) {
+      const st = await habitStats(env, h, today);
+      if (st.current_streak >= 2) streaks.push(`${st.habit} ${st.current_streak}🔥`);
+    }
+  } catch {
+    /* streaks are a bonus */
+  }
+
+  const lines = [`Good morning! ☀️ ${describeIST(nowMs).slice(0, 10)}`, morningOpener(nowMs)];
+  if (weather) lines.push(`🌤️ ${weather}`);
   if (reminders.length) {
     lines.push('Today:', ...reminders.map((r) => `- ${formatIST(r.due_at).slice(11)} ${r.text}`));
   } else {
@@ -53,6 +73,7 @@ export async function buildBriefing(env, nowMs) {
     const total = spent.reduce((s, r) => s + r.total, 0);
     lines.push(`Yesterday you spent ${money(total)} (${spent.map((r) => `${r.category} ${money(r.total)}`).join(', ')}).`);
   }
+  if (streaks.length) lines.push(`Streaks alive: ${streaks.join(', ')}. Do not break them now 😤`);
   for (const c of countdowns) {
     const days = Math.round((c.target_at - dayStart) / DAY);
     lines.push(`⏳ ${c.label}: ${days === 0 ? 'today!' : `${days} day${days === 1 ? '' : 's'} to go`}`);

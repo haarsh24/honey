@@ -1,6 +1,7 @@
 import { runAssistant } from './assistant.js';
 import { getState, markSeen, setState } from './db.js';
-import { sendText } from './whatsapp.js';
+import { sendText, showTyping } from './whatsapp.js';
+import { fastReply } from './fastpath.js';
 import { normalizePhone } from './util.js';
 import { formatIST } from './time.js';
 import { handleMedia } from './media.js';
@@ -11,7 +12,7 @@ const MEDIA_TYPES = ['audio', 'image', 'document'];
 
 const HISTORY_LIMIT = 6; // messages kept for context (3 turns)
 
-const HELP_TEXT = `Your personal sidekick here 😎 I can help with:
+const HELP_TEXT = `Honey here, your personal sidekick with zero salary demands 😎 I can help with:
 - Notes: "save: book idea - Atomic Habits", "what did I save about books?"
 - Reminders: "remind me to pay rent on the 1st at 9am", "remind me every Monday 8am to plan the week"
 - Expenses: "spent 450 on lunch", "how much did I spend this week?"
@@ -29,6 +30,9 @@ const HELP_TEXT = `Your personal sidekick here 😎 I can help with:
 - News: "news on AI and markets every morning", or just "news"
 - Markets: "price of Reliance", "NAV of Parag Parikh Flexi Cap", "tell me when TCS goes below 3000"
 - Work: "write a LinkedIn post about X", "save post idea: ...", "write my standup"
+- Quick lists (instant): "tasks", "reminders", "notes", "habits"
+- Oops buttons: "undo" removes what I just added, "snooze 10" pushes a reminder that just rang
+- Weather: "weather" or "will it rain in Ranchi?"
 - Voice replies: send me a voice note and I'll answer in a voice note too (English replies)
 
 Commands: /help, /reset (forget this chat's context), /quiz, /briefing on|off (morning summary and Sunday review), /journal on|off (nightly prompt), /voicereply on|off.
@@ -101,7 +105,8 @@ export async function handleIncoming(env, msg, nowMs = Date.now()) {
   }
   if (!(await markSeen(env, msg.id, nowMs))) return { ignored: 'duplicate' };
 
-  // Opens the 24-hour free-reply window, so remember when it started.
+  // Opens the 24-hour free-reply window, so remember when it started. Show "typing..." while we think.
+  const typing = showTyping(env, msg.id);
   await setState(env, 'last_inbound_at', nowMs);
 
   let text;
@@ -171,16 +176,31 @@ export async function handleIncoming(env, msg, nowMs = Date.now()) {
     return { replied: true };
   }
 
-  const history = await loadHistory(env);
+  // Plain list requests ("tasks", "reminders") are answered instantly, without the AI.
+  try {
+    const quick = await fastReply(env, text, nowMs);
+    if (quick) {
+      await typing;
+      await sendText(env, owner, prefix ? `${prefix}\n\n${quick}` : quick);
+      if (msg.type === 'audio') await sendVoiceReply(env, owner, quick);
+      return { replied: true, fast: true };
+    }
+  } catch (error) {
+    console.error('Fast path failed, using the assistant:', error.message);
+  }
+
+  const [history, extra] = await Promise.all([loadHistory(env), extraContext(env, nowMs)]);
   let reply;
   try {
-    reply = await runAssistant(env, text, history, nowMs, await extraContext(env, nowMs));
+    reply = await runAssistant(env, text, history, nowMs, extra);
   } catch (error) {
     console.error('Assistant failed:', error.message);
+    await typing;
     await sendText(env, owner, 'My brain just buffered 🙃 Try again in a minute?');
     return { replied: true, error: true };
   }
 
+  await typing;
   await sendText(env, owner, prefix ? `${prefix}\n\n${reply}` : reply);
   if (msg.type === 'audio') await sendVoiceReply(env, owner, reply);
   try {

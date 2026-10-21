@@ -5,6 +5,7 @@ import { HABIT_TOOLS } from './habits.js';
 import { MARKET_TOOLS } from './markets.js';
 import { DIGEST_TOOLS } from './digest.js';
 import { WORK_TOOLS } from './work.js';
+import { EXTRA_TOOLS, rememberAction } from './extras.js';
 
 const MAX_TEXT = 2000;
 const REPEATS = ['none', 'daily', 'weekly', 'monthly'];
@@ -141,7 +142,10 @@ export const TOOL_HELP = `- save_note {"text": string}
 - delete_idea {"id": number}
 - save_style {"text": string} (a sample of the user's own writing, to imitate later)
 - get_style {} (the user's writing style and saved samples)
-- standup_data {} (finished and open tasks plus standup notes, to write a standup update)`;
+- standup_data {} (finished and open tasks plus standup notes, to write a standup update)
+- snooze_reminder {"minutes"?: number (default 10), "id"?: number} (push the reminder that just rang by some minutes)
+- undo_last {} (removes the last note, reminder, expense, task or habit entry that was added)
+- weather {"city"?: string} (today's forecast; default city is the user's home city)`;
 
 export const TOOLS = {
   async save_note(env, args, { now }) {
@@ -512,7 +516,7 @@ export const TOOLS = {
   },
 };
 
-Object.assign(TOOLS, HABIT_TOOLS, MARKET_TOOLS, DIGEST_TOOLS, WORK_TOOLS);
+Object.assign(TOOLS, HABIT_TOOLS, MARKET_TOOLS, DIGEST_TOOLS, WORK_TOOLS, EXTRA_TOOLS);
 
 TOOLS.web_search = async (env, args) => {
   const query = cleanText(args.query);
@@ -536,7 +540,9 @@ export async function runTool(env, name, args, ctx) {
   const tool = Object.hasOwn(TOOLS, name) ? TOOLS[name] : null;
   if (!tool) return { error: `Unknown tool "${name}"` };
   try {
-    return await tool(env, args && typeof args === 'object' ? args : {}, ctx);
+    const result = await tool(env, args && typeof args === 'object' ? args : {}, ctx);
+    await rememberAction(env, name, result);
+    return result;
   } catch (error) {
     return { error: error.message };
   }

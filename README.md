@@ -89,6 +89,11 @@ Needs the `GEMINI_KEY` secret (free key from aistudio.google.com).
 - **Stocks and mutual funds:** "price of Reliance", "NAV of Parag Parikh Flexi Cap", "tell me when TCS goes below 3000". Stock alerts are checked every 15 minutes during market hours (Mon-Fri), fund alerts once a night. Each alert fires once. Prices come from Yahoo Finance and mfapi.in, can be delayed, and are not advice.
 - **Work helpers:** "save post idea: ...", "write a LinkedIn post about my WhatsApp bot", "write my standup". Send a post of yours with "this is my style" and it imitates it (last 5 are kept).
 - **Voice replies:** send a voice note and the bot also answers with an audio message (English replies up to about 600 characters; Hindi stays text). `/voicereply off` to disable.
+- **Instant lists:** "tasks", "reminders", "notes" or "habits" are answered straight from the database with no AI wait.
+- **Undo and snooze:** "undo" removes the last note, reminder, expense, task or habit entry. After a reminder rings, "snooze 10" brings it back in 10 minutes.
+- **Weather:** "weather" or "will it rain in Ranchi?" (free Open-Meteo). The morning briefing includes today's forecast for `WEATHER_CITY` (default Ranchi), a joke opener and your live habit streaks.
+- **Typing indicator:** the chat shows "typing..." while the bot thinks. Set `TYPING_INDICATOR = "off"` in `wrangler.toml` to disable.
+- **Personality:** Honey is a funny friend with dry wit, light roasting and Indian everyday humour, and stays serious around health, money trouble or stress.
 
 Gemini's free tier may use inputs for Google's training, so keep sensitive photos and documents out.
 

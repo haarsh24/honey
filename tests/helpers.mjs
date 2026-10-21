@@ -35,6 +35,7 @@ export function makeEnv(extra = {}) {
     GRAPH_VERSION: 'v25.0',
     TEMPLATE_NAME: 'reminder',
     TEMPLATE_LANG: 'en',
+    TYPING_INDICATOR: 'off',
     ...extra,
   };
 }
