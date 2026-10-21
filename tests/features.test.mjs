@@ -175,6 +175,6 @@ test('web_search and read_url use Gemini and validate the url', async () => {
   assert.equal(r.answer, 'Petrol is 100 rupees.');
   const u = await TOOLS.read_url(env, { url: 'https://example.com/a', question: 'what is this?' });
   assert.equal(u.answer, 'Petrol is 100 rupees.');
-  assert.deepEqual(seen, ['search', 'url']);
+  assert.deepEqual(seen, ['url', 'url']);
   assert.ok((await TOOLS.read_url(env, { url: 'javascript:alert(1)' })).error);
 });

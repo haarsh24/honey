@@ -49,53 +49,63 @@ export async function gemini(env, { prompt, media, json = false }) {
   }
 }
 
+/** Results page Gemini reads for web searches (Google Search grounding has no free quota, URL reading does). */
+export const searchUrl = (query) => `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+
+const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+
 /**
- * Gemini with a built-in web tool: Google Search or URL reading.
- * kind: 'search' | 'url'. Returns { text, sources: [{title, url}] }.
+ * Gemini with the URL-reading tool: the prompt names the page(s) to open.
+ * Tries the configured model, then a lighter one if the first is busy or over quota.
+ * Returns { text }.
  */
-export async function geminiWeb(env, { prompt, kind }) {
+export async function geminiWeb(env, { prompt }) {
   if (typeof env.__gemini === 'function') {
-    return { text: await env.__gemini({ prompt, kind }), sources: [] }; // test hook
+    return { text: await env.__gemini({ prompt, kind: 'url' }) }; // test hook
   }
   if (!env.GEMINI_KEY) {
     const error = new Error('GEMINI_KEY is not set');
     error.code = 'NO_KEY';
     throw error;
   }
-  const model = env.GEMINI_MODEL || 'gemini-flash-latest';
-  const tool = kind === 'url' ? { url_context: {} } : { google_search: {} };
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      {
-        method: 'POST',
-        headers: { 'x-goog-api-key': env.GEMINI_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          tools: [tool],
-          generationConfig: { temperature: 0.2 },
-        }),
-        signal: controller.signal,
-      },
-    );
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(`gemini ${response.status}: ${data?.error?.message ?? 'request failed'}`);
-    const candidate = data?.candidates?.[0] ?? {};
-    const text = (candidate.content?.parts ?? []).map((p) => p.text ?? '').join('').trim();
-    if (!text) throw new Error('gemini returned no text');
-    const seen = new Set();
-    const sources = [];
-    for (const chunk of candidate.groundingMetadata?.groundingChunks ?? []) {
-      const web = chunk.web;
-      if (web?.uri && !seen.has(web.uri) && sources.length < 3) {
-        seen.add(web.uri);
-        sources.push({ title: web.title ?? '', url: web.uri });
+  const models = [...new Set([env.GEMINI_MODEL || 'gemini-flash-latest', 'gemini-flash-lite-latest'])];
+  let lastError;
+  for (const model of models) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: 'POST',
+          headers: { 'x-goog-api-key': env.GEMINI_KEY, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            tools: [{ url_context: {} }],
+            generationConfig: { temperature: 0.2 },
+          }),
+          signal: controller.signal,
+        },
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        lastError = new Error(`gemini ${response.status}: ${data?.error?.message ?? 'request failed'}`);
+        if (RETRYABLE.has(response.status)) continue;
+        throw lastError;
       }
+      const text = (data?.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('').trim();
+      if (!text) {
+        lastError = new Error('gemini returned no text');
+        continue;
+      }
+      return { text: text.slice(0, 3000) };
+    } catch (error) {
+      lastError = error;
+      if (error.name !== 'AbortError' && !String(error.message).startsWith('gemini ')) throw error;
+      if (String(error.message).startsWith('gemini ') && !RETRYABLE.has(Number(/gemini (\d+)/.exec(error.message)?.[1]))) throw error;
+    } finally {
+      clearTimeout(timer);
     }
-    return { text: text.slice(0, 3000), sources };
-  } finally {
-    clearTimeout(timer);
   }
+  throw lastError ?? new Error('gemini failed');
 }

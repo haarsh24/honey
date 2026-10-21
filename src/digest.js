@@ -1,6 +1,6 @@
 // Daily news digest: Gemini searches the web for the owner's topics.
 import { getState, setState } from './db.js';
-import { geminiWeb } from './gemini.js';
+import { geminiWeb, searchUrl } from './gemini.js';
 
 const TOPICS_KEY = 'news_topics';
 
@@ -15,8 +15,7 @@ export async function getTopics(env) {
 
 async function headlines(env, topic) {
   const { text } = await geminiWeb(env, {
-    kind: 'search',
-    prompt: `List the 5 most important latest news headlines about "${topic}" (India focus when relevant). One line each, plain text, start each with "- ", end with the source site name in brackets. No links, no intro.`,
+    prompt: `Read this web search results page: ${searchUrl(`${topic} latest news today`)}\n\nList the 5 most important latest news headlines about "${topic}" from it (India focus when relevant). One line each, plain text, start each with "- ", end with the source site name in brackets. No links, no intro.`,
   });
   return text.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('-')).slice(0, 5);
 }

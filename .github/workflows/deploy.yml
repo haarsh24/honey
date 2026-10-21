@@ -129,17 +129,14 @@ jobs:
           echo "::notice title=phone check::$(echo "$ph" | head -c 400)"
           echo "::notice title=owner number::length ${#OWNER_NUMBER}, starts $(printf %s "$OWNER_NUMBER" | head -c 4)"
 
-      - name: Diagnostics (search without Google grounding)
+      - name: Self-test web search and news (real code path)
         continue-on-error: true
         run: |
-          H="x-goog-api-key: ${GEMINI_KEY}"
-          for u in "https://html.duckduckgo.com/html/?q=petrol+price+in+Ranchi+today" "https://www.bing.com/search?q=petrol+price+in+Ranchi+today" "https://www.google.com/search?q=petrol+price+in+Ranchi+today"; do
-            code=$(curl -s -o "$RUNNER_TEMP/g.json" -w '%{http_code}' -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent" -H "$H" -H 'Content-Type: application/json' --data "{\"contents\":[{\"parts\":[{\"text\":\"Read $u and tell me the petrol price in Ranchi in one line, or say what you could not read.\"}]}],\"tools\":[{\"url_context\":{}}]}")
-            txt=$(node -e 'try{const j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));console.log((j.candidates?.[0]?.content?.parts||[]).map(p=>p.text||"").join(" ").slice(0,220)+" | "+JSON.stringify(j.candidates?.[0]?.urlContextMetadata||j.error?.message||"").slice(0,160))}catch(e){console.log("parse fail")}' "$RUNNER_TEMP/g.json")
-            echo "::notice title=ctx ${u:8:22}::HTTP ${code} ${txt}"
-          done
-          for u in "https://html.duckduckgo.com/html/?q=petrol+price+in+Ranchi" "https://lite.duckduckgo.com/lite/?q=petrol+price+in+Ranchi"; do
-            code=$(curl -s -o "$RUNNER_TEMP/d.html" -w '%{http_code}' -A 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36' "$u")
-            n=$(grep -c 'result' "$RUNNER_TEMP/d.html" 2>/dev/null || true)
-            echo "::notice title=ddg ${u:8:12}::HTTP ${code} bytes $(wc -c < "$RUNNER_TEMP/d.html") resultlines ${n} captcha $(grep -ci 'anomaly\|captcha' "$RUNNER_TEMP/d.html")"
-          done
+          node --input-type=module -e '
+            import { TOOLS } from "./src/tools.js";
+            import { buildDigest } from "./src/digest.js";
+            const env = { GEMINI_KEY: process.env.GEMINI_KEY, GEMINI_MODEL: "gemini-flash-latest" };
+            const show = (t, v) => console.log(`::notice title=${t}::${String(v).replace(/\s+/g, " ").slice(0, 400)}`);
+            try { show("web_search", JSON.stringify(await TOOLS.web_search(env, { query: "latest petrol price in Ranchi" }))); } catch (e) { show("web_search error", e.message); }
+            try { show("news", await buildDigest(env, ["AI"])); } catch (e) { show("news error", e.message); }
+          '

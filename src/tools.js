@@ -1,6 +1,6 @@
 import { getState, setState } from './db.js';
 import { formatIST, istParts, parseIST, startOfISTDay, startOfPeriod } from './time.js';
-import { geminiWeb } from './gemini.js';
+import { geminiWeb, searchUrl } from './gemini.js';
 import { HABIT_TOOLS } from './habits.js';
 import { MARKET_TOOLS } from './markets.js';
 import { DIGEST_TOOLS } from './digest.js';
@@ -516,11 +516,10 @@ Object.assign(TOOLS, HABIT_TOOLS, MARKET_TOOLS, DIGEST_TOOLS, WORK_TOOLS);
 
 TOOLS.web_search = async (env, args) => {
   const query = cleanText(args.query);
-  const { text, sources } = await geminiWeb(env, {
-    kind: 'search',
-    prompt: `Search the web and answer briefly and factually (under 120 words). Include dates or numbers where relevant.\n\nQuestion: ${query}`,
+  const { text } = await geminiWeb(env, {
+    prompt: `Read this web search results page: ${searchUrl(query)}\n\nUsing the result titles and snippets, answer the question briefly (under 120 words) with specific numbers and dates where they appear. Name the sites you relied on. If the page does not contain the answer, say so plainly.\n\nQuestion: ${query}`,
   });
-  return { answer: text, sources };
+  return { answer: text };
 };
 
 TOOLS.read_url = async (env, args) => {
@@ -528,7 +527,6 @@ TOOLS.read_url = async (env, args) => {
   if (!/^https?:\/\/\S+$/i.test(url)) return { error: 'url must start with http:// or https://' };
   const question = args.question ? cleanText(args.question) : 'Summarise the main points in 5 short bullets.';
   const { text } = await geminiWeb(env, {
-    kind: 'url',
     prompt: `Read this page: ${url}\n\nTask: ${question}\nBe brief (under 150 words) and only use what the page says.`,
   });
   return { url, answer: text };

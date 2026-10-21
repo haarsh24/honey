@@ -187,3 +187,20 @@ test('voice note gets a text reply and a spoken reply; /voicereply off disables 
   assert.ok(!after.some((b) => b.upload || b.type === 'audio'), 'no voice reply when off');
   assert.ok(after.some((b) => b.text));
 });
+
+test('geminiWeb falls back to the lighter model when the first is over quota', async () => {
+  const { geminiWeb } = await import('../src/gemini.js');
+  const models = [];
+  globalThis.fetch = async (url) => {
+    const model = /models\/(.+?):/.exec(String(url))[1];
+    models.push(model);
+    return model === 'gemini-flash-latest'
+      ? new Response(JSON.stringify({ error: { message: 'quota' } }), { status: 429 })
+      : new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'Rs 106' }] } }] }));
+  };
+  const r = await geminiWeb({ GEMINI_KEY: 'k' }, { prompt: 'x' });
+  assert.equal(r.text, 'Rs 106');
+  assert.deepEqual(models, ['gemini-flash-latest', 'gemini-flash-lite-latest']);
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: 'bad key' } }), { status: 400 });
+  await assert.rejects(geminiWeb({ GEMINI_KEY: 'k' }, { prompt: 'x' }), /400/);
+});
