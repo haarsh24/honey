@@ -5,6 +5,7 @@ import { normalizePhone } from './util.js';
 import { formatIST } from './time.js';
 import { handleMedia } from './media.js';
 import { quizContext, quizNow } from './learning.js';
+import { sendVoiceReply } from './voice.js';
 
 const MEDIA_TYPES = ['audio', 'image', 'document'];
 
@@ -23,8 +24,14 @@ const HELP_TEXT = `Your personal sidekick here 😎 I can help with:
 - Voice notes: just talk, I'll understand and do it (English, Hindi or Hinglish)
 - Photos: send a receipt and I'll log the expense; other photos I'll read and summarise
 - PDFs: send a bill or document, I'll summarise it and set reminders for due dates
+- Web: "search latest petrol price in Ranchi", or paste a link and ask about it
+- Habits: "did gym today", "how are my habits?" (streaks, plus an evening nudge)
+- News: "news on AI and markets every morning", or just "news"
+- Markets: "price of Reliance", "NAV of Parag Parikh Flexi Cap", "tell me when TCS goes below 3000"
+- Work: "write a LinkedIn post about X", "save post idea: ...", "write my standup"
+- Voice replies: send me a voice note and I'll answer in a voice note too (English replies)
 
-Commands: /help, /reset (forget this chat's context), /quiz, /briefing on|off (morning summary and Sunday review), /journal on|off (nightly prompt).
+Commands: /help, /reset (forget this chat's context), /quiz, /briefing on|off (morning summary and Sunday review), /journal on|off (nightly prompt), /voicereply on|off.
 Please don't send passwords, card numbers or ID numbers.`;
 
 export function ownerNumber(env) {
@@ -140,6 +147,11 @@ export async function handleIncoming(env, msg, nowMs = Date.now()) {
     await sendText(env, owner, command.endsWith('on') ? 'Nightly journal prompt is on (9:30 PM IST) 🌙' : 'Nightly journal prompt is off.');
     return { replied: true };
   }
+  if (command === '/voicereply on' || command === '/voicereply off') {
+    await setState(env, 'voice_reply', command.endsWith('on') ? 'on' : 'off');
+    await sendText(env, owner, command.endsWith('on') ? 'Voice replies on. Send a voice note and I will talk back 🎙️' : 'Voice replies off. Text only from now on.');
+    return { replied: true };
+  }
   if (command === '/quiz') {
     try {
       await sendText(env, owner, await quizNow(env, nowMs));
@@ -170,6 +182,7 @@ export async function handleIncoming(env, msg, nowMs = Date.now()) {
   }
 
   await sendText(env, owner, prefix ? `${prefix}\n\n${reply}` : reply);
+  if (msg.type === 'audio') await sendVoiceReply(env, owner, reply);
   try {
     await saveHistory(env, history, text, reply);
   } catch (error) {

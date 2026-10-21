@@ -38,3 +38,6 @@ BRIEFING_TIME_UTC = "02:30"
 # Nightly journal prompt (16:00 UTC = 21:30 IST) and daily quiz (07:30 UTC = 13:00 IST).
 JOURNAL_TIME_UTC = "16:00"
 QUIZ_TIME_UTC = "07:30"
+# Habit nudge (15:00 UTC = 20:30 IST) and news digest (03:00 UTC = 08:30 IST).
+HABIT_TIME_UTC = "15:00"
+NEWS_TIME_UTC = "03:00"

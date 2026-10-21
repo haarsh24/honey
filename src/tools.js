@@ -1,6 +1,10 @@
 import { getState, setState } from './db.js';
 import { formatIST, istParts, parseIST, startOfISTDay, startOfPeriod } from './time.js';
 import { geminiWeb } from './gemini.js';
+import { HABIT_TOOLS } from './habits.js';
+import { MARKET_TOOLS } from './markets.js';
+import { DIGEST_TOOLS } from './digest.js';
+import { WORK_TOOLS } from './work.js';
 
 const MAX_TEXT = 2000;
 const REPEATS = ['none', 'daily', 'weekly', 'monthly'];
@@ -120,7 +124,24 @@ export const TOOL_HELP = `- save_note {"text": string}
 - learn_off {}
 - quiz_done {"correct": boolean} (call after grading a quiz answer)
 - web_search {"query": string} (live Google search: news, prices, facts, anything current)
-- read_url {"url": string, "question"?: string} (opens a web page the user shared and answers from it)`;
+- read_url {"url": string, "question"?: string} (opens a web page the user shared and answers from it)
+- log_habit {"name": string, "date"?: "YYYY-MM-DD"} (marks a habit done, e.g. gym; creates it if new; returns streaks)
+- habit_status {"name"?: string}
+- delete_habit {"name": string}
+- set_news_topics {"topics": string[]} (1-4 topics for the daily 8:30 AM digest)
+- news_now {"topic"?: string} (headlines now for the saved topics, or one topic)
+- stop_news {}
+- price_check {"symbol": string} (Indian stock name or NSE ticker like RELIANCE; also US tickers, NIFTY, SENSEX)
+- mf_nav {"name": string} (mutual fund NAV; returns scheme_code)
+- watch_price {"target": string (stock, or "mf:<scheme_code>"), "above"?: number, "below"?: number} (ping when the price crosses)
+- list_watches {}
+- remove_watch {"id": number}
+- save_idea {"kind": "standup"|"linkedin"|"idea", "text": string}
+- list_ideas {"kind"?: string, "query"?: string, "limit"?: number}
+- delete_idea {"id": number}
+- save_style {"text": string} (a sample of the user's own writing, to imitate later)
+- get_style {} (the user's writing style and saved samples)
+- standup_data {} (finished and open tasks plus standup notes, to write a standup update)`;
 
 export const TOOLS = {
   async save_note(env, args, { now }) {
@@ -490,6 +511,8 @@ export const TOOLS = {
     return { recorded: true, score: `${stats.correct}/${stats.total}` };
   },
 };
+
+Object.assign(TOOLS, HABIT_TOOLS, MARKET_TOOLS, DIGEST_TOOLS, WORK_TOOLS);
 
 TOOLS.web_search = async (env, args) => {
   const query = cleanText(args.query);

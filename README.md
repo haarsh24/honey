@@ -84,6 +84,11 @@ Needs the `GEMINI_KEY` secret (free key from aistudio.google.com).
 - **Quick answers:** day-of-week and date maths, countdowns ("days till Goa trip", shown in the morning briefing), currency conversion (ECB reference rates), calculator, translate or rewrite any message.
 
 - **Web search and links:** "search the latest petrol price in Ranchi" uses Google Search through Gemini. Paste a link with a question ("summarise this https://...") and it reads the page and answers.
+- **Habits:** "did gym today". It tracks streaks ("how are my habits?") and nudges you at 8:30 PM IST about habits you did recently but not yet today.
+- **News digest:** "news on AI, markets and Ranchi every morning" saves up to 4 topics and sends 5 headlines each at 8:30 AM IST (free window only). Say "news" any time for it now, "stop news" to cancel.
+- **Stocks and mutual funds:** "price of Reliance", "NAV of Parag Parikh Flexi Cap", "tell me when TCS goes below 3000". Stock alerts are checked every 15 minutes during market hours (Mon-Fri), fund alerts once a night. Each alert fires once. Prices come from Yahoo Finance and mfapi.in, can be delayed, and are not advice.
+- **Work helpers:** "save post idea: ...", "write a LinkedIn post about my WhatsApp bot", "write my standup". Send a post of yours with "this is my style" and it imitates it (last 5 are kept).
+- **Voice replies:** send a voice note and the bot also answers with an audio message (English replies up to about 600 characters; Hindi stays text). `/voicereply off` to disable.
 
 Gemini's free tier may use inputs for Google's training, so keep sensitive photos and documents out.
 

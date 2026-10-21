@@ -52,3 +52,22 @@ export async function sendTemplate(env, to, name, language, bodyText) {
     },
   });
 }
+
+/** Uploads audio to WhatsApp and sends it as an audio message (works inside the 24-hour window). */
+export async function sendAudio(env, to, bytes, mime = 'audio/mpeg') {
+  const version = env.GRAPH_VERSION || 'v25.0';
+  const form = new FormData();
+  form.append('messaging_product', 'whatsapp');
+  form.append('type', mime);
+  form.append('file', new Blob([bytes], { type: mime }), 'reply.mp3');
+  const upload = await fetch(`https://graph.facebook.com/${version}/${env.PHONE_NUMBER_ID}/media`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${env.WHATSAPP_TOKEN}` },
+    body: form,
+  });
+  const uploaded = await upload.json().catch(() => ({}));
+  if (!upload.ok || !uploaded.id) {
+    throw new Error(`WhatsApp media upload ${upload.status}: ${uploaded?.error?.message ?? 'no media id'}`);
+  }
+  return callGraph(env, { messaging_product: 'whatsapp', to, type: 'audio', audio: { id: uploaded.id } });
+}
