@@ -62,14 +62,25 @@ const PROVIDERS = {
       model: env.GROQ_MODEL || 'llama-3.3-70b-versatile',
       messages,
     }),
-  gemini: (env, messages) =>
-    openAICompatible({
-      name: 'gemini',
-      url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
-      key: env.GEMINI_KEY,
-      model: env.GEMINI_MODEL || 'gemini-flash-latest',
-      messages,
-    }),
+  gemini: async (env, messages) => {
+    const models = [...new Set([env.GEMINI_MODEL || 'gemini-flash-latest', 'gemini-flash-lite-latest'])];
+    let lastError;
+    for (const model of models) {
+      try {
+        return await openAICompatible({
+          name: 'gemini',
+          url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+          key: env.GEMINI_KEY,
+          model,
+          messages,
+        });
+      } catch (error) {
+        lastError = error;
+        if (!/ (429|500|502|503|504|404)[: ]/.test(error.message)) throw error; // only busy/over-quota errors try the next model
+      }
+    }
+    throw lastError;
+  },
 };
 
 export async function chat(env, messages) {
