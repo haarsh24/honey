@@ -7,6 +7,8 @@ const MAX_STEPS = 4;
 
 /** Rules and tools that only matter when the message is about that topic, so the prompt stays short and replies come faster. */
 const RULES = [
+  { group: 'core', text: "- Memory: \"what was that book Rahul recommended?\", \"did I note anything about the insurance?\", \"what was my idea about...\" mean ask_memory with the question as the query, then answer from the matches (say when nothing matches). When the user tells you a fact about a person (\"Rahul's wife is Neha, loves cricket\", \"Priya's birthday is 4 March\") call remember_contact with the name and the fact, then confirm briefly. \"What do I know about Rahul\" or \"I'm meeting Rahul\" means about_person." },
+  { group: 'work', text: "- LinkedIn posts: \"idea: ...\" or \"post idea: ...\" means save_idea with kind linkedin. \"Turn my saved ideas into this week's posts\", \"plan my posts\" or \"draft posts from my ideas\" means plan_posts (count 3 unless they say otherwise). Show the returned drafts in full, each as \"Post #id, <day and time>\" followed by its text, then ask if they want edits. \"Edit post 12: ...\" is edit_post, \"show post 12\" is get_post, \"posted 12\" is mark_posted, \"cancel post 12\" is cancel_post, \"my scheduled posts\" is list_posts." },
   { group: 'habits', text: "- Habits: \"did gym today\", \"meditated\", \"skipped gym\" style messages: call log_habit for the ones done (nothing to log for skipped). Reply with the streak in a fun way. \"How are my habits?\" uses habit_status." },
   { group: 'news', text: "- News: \"news on AI and markets daily\" means set_news_topics. \"news\" or \"what's happening in X\" means news_now. Share the digest as given, trimmed if long." },
   { group: 'markets', text: "- Stocks and funds: price questions use price_check or mf_nav (never guess prices). \"Tell me when Reliance crosses 1500\" or \"alert me if TCS falls below 3000\" means watch_price. Prices are delayed and for information only, not advice." },
@@ -26,7 +28,7 @@ const TOPIC = {
   habits: /\b(habits?|streaks?|gym|workout|work out|meditat\w*|yoga|exercis\w*|jog\w*|run|ran|walk\w*|cycl\w*|did|done|skipped|read|reading)\b/i,
   news: /\b(news|headlines?|digest)\b/i,
   markets: /\b(price|prices|stocks?|shares?|nifty|sensex|nav|mutual|funds?|sip|alerts?|cross\w*|falls?|drops?|watch\w*|tcs|reliance|infy|hdfc|bitcoin|crypto)\b/i,
-  work: /\b(posts?|linkedin|ideas?|stand-?up|style|caption|tweet|thread)\b/i,
+  work: /\b(posts?|posted|linkedin|ideas?|stand-?up|style|caption|tweet|thread)\b/i,
   meeting: /\b(meetings?|minutes|action items?)\b|\[Long voice note/i,
   journal: /\b(journal|diary|what happened|yesterday|last (mon|tues?|wednes|thurs?|fri|satur|sun)day)\b|journal prompt/i,
   countdown: /\b(countdowns?|days? (till|until|left|to|since)|how many days)\b/i,
@@ -37,7 +39,7 @@ const TOOL_GROUPS = {
   habits: ['log_habit', 'habit_status', 'delete_habit'],
   news: ['set_news_topics', 'news_now', 'stop_news'],
   markets: ['price_check', 'mf_nav', 'watch_price', 'list_watches', 'remove_watch'],
-  work: ['save_idea', 'list_ideas', 'delete_idea', 'save_style', 'get_style', 'standup_data'],
+  work: ['save_idea', 'list_ideas', 'delete_idea', 'save_style', 'get_style', 'standup_data', 'plan_posts', 'list_posts', 'get_post', 'edit_post', 'mark_posted', 'cancel_post'],
   meeting: ['save_meeting'],
   journal: ['save_journal', 'search_journal'],
   countdown: ['add_countdown', 'list_countdowns', 'delete_countdown'],
@@ -92,7 +94,7 @@ HOW TO ANSWER
 - The user may write in English, Hindi or Hinglish (including transcribed voice notes). Understand all of them and reply in the language the user used.
 - A message starting with [Image] or [Document] describes a file the user sent. If it contains an instruction (a caption or note), follow it using tools. Otherwise give a 2-3 line summary and offer to save it as a note. Do not invent details beyond the description. If it says reminders were already created automatically, do not create them again.
 - When asked to draft an email or message, write it ready to send (with a Subject line for emails) and keep it short unless asked for more.
-- To find saved information use search_notes. If it returns recent_notes, choose the ones that match the question by meaning.
+- To find saved information ask by meaning with ask_memory (notes, journal, ideas and contact facts). If the user names a person ("what do I know about Rahul") use about_person. search_notes is only for exact-word lookups.
 
 MORE RULES
 ${selectedRules(topics)}${extra ? `\n\nCURRENT CONTEXT\n${extra}` : ''}

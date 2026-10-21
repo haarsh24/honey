@@ -30,6 +30,8 @@ const HELP_TEXT = `Honey here, your personal sidekick with zero salary demands ð
 - News: "news on AI and markets every morning", or just "news"
 - Markets: "price of Reliance", "NAV of Parag Parikh Flexi Cap", "tell me when TCS goes below 3000"
 - Work: "write a LinkedIn post about X", "save post idea: ...", "write my standup"
+- Memory: "what was that book Rahul recommended?", "Rahul's wife is Neha, loves cricket", "what do I know about Rahul?"
+- LinkedIn: "idea: ...", then "turn my saved ideas into this week's posts" (drafts, schedules, pings you)
 - Quick lists (instant): "tasks", "reminders", "notes", "habits"
 - Oops buttons: "undo" removes what I just added, "snooze 10" pushes a reminder that just rang
 - Weather: "weather" or "will it rain in Ranchi?"

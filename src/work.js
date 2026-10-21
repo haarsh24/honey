@@ -3,7 +3,7 @@ import { getState, setState } from './db.js';
 import { formatIST, startOfISTDay } from './time.js';
 
 const KINDS = ['standup', 'linkedin', 'idea'];
-const STYLE_KEY = 'writing_samples';
+export const STYLE_KEY = 'writing_samples';
 export const DEFAULT_STYLE =
   'Short and punchy. Strong hook in the first line. Dry humor. Casual, human, never corporate. Hinglish-friendly. Absurdist tech jokes and light meta-irony about AI and LinkedIn are welcome. No hashtag spam.';
 

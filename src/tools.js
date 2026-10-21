@@ -6,6 +6,8 @@ import { MARKET_TOOLS } from './markets.js';
 import { DIGEST_TOOLS } from './digest.js';
 import { WORK_TOOLS } from './work.js';
 import { EXTRA_TOOLS, rememberAction } from './extras.js';
+import { MEMORY_TOOLS, indexAfterTool } from './memory.js';
+import { POST_TOOLS } from './posts.js';
 
 const MAX_TEXT = 2000;
 const REPEATS = ['none', 'daily', 'weekly', 'monthly'];
@@ -145,7 +147,18 @@ export const TOOL_HELP = `- save_note {"text": string}
 - standup_data {} (finished and open tasks plus standup notes, to write a standup update)
 - snooze_reminder {"minutes"?: number (default 10), "id"?: number} (push the reminder that just rang by some minutes)
 - undo_last {} (removes the last note, reminder, expense, task or habit entry that was added)
-- weather {"city"?: string} (today's forecast; default city is the user's home city)`;
+- weather {"city"?: string} (today's forecast; default city is the user's home city)
+- ask_memory {"query": string, "limit"?: number} (finds saved notes, journal entries, ideas and contact facts BY MEANING; use it for any "what was that...", "did I note..." question)
+- remember_contact {"name": string, "fact": string} (a fact about a person, e.g. "wife is Neha, loves cricket")
+- about_person {"name": string} (everything known about a person: saved facts plus notes and journal mentioning them)
+- list_contacts {}
+- forget_contact {"name": string}
+- plan_posts {"count"?: number (1-5, default 3), "time"?: "HH:MM" (IST, default 09:00)} (drafts LinkedIn posts from unused saved ideas in the user's style and schedules a reminder for each)
+- list_posts {"status"?: "scheduled"|"sent"|"posted"|"draft"|"cancelled"}
+- get_post {"id": number}
+- edit_post {"id": number, "text": string}
+- mark_posted {"id": number}
+- cancel_post {"id": number}`;
 
 export const TOOLS = {
   async save_note(env, args, { now }) {
@@ -516,7 +529,7 @@ export const TOOLS = {
   },
 };
 
-Object.assign(TOOLS, HABIT_TOOLS, MARKET_TOOLS, DIGEST_TOOLS, WORK_TOOLS, EXTRA_TOOLS);
+Object.assign(TOOLS, HABIT_TOOLS, MARKET_TOOLS, DIGEST_TOOLS, WORK_TOOLS, EXTRA_TOOLS, MEMORY_TOOLS, POST_TOOLS);
 
 TOOLS.web_search = async (env, args) => {
   const query = cleanText(args.query);
@@ -542,6 +555,7 @@ export async function runTool(env, name, args, ctx) {
   try {
     const result = await tool(env, args && typeof args === 'object' ? args : {}, ctx);
     await rememberAction(env, name, result);
+    await indexAfterTool(env, name, args, result, ctx?.now);
     return result;
   } catch (error) {
     return { error: error.message };

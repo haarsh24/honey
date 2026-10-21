@@ -2,18 +2,23 @@ import { getState, setState } from './db.js';
 import { sendTemplate, sendText } from './whatsapp.js';
 import { nextOccurrence } from './time.js';
 import { ownerNumber } from './handler.js';
+import { markPostSent, postForReminder } from './posts.js';
 
 const WINDOW_MS = 23.5 * 60 * 60 * 1000; // stay safely inside WhatsApp's 24-hour window
 const MAX_ATTEMPTS = 3;
 const REENGAGEMENT_ERROR = 131047; // "re-engagement message": the 24-hour window is closed
 
-async function deliver(env, to, text, inWindow) {
+async function deliver(env, to, text, inWindow, post = null) {
+  const compact = post ? `${text} Message me "show post ${post.id}" for the text.` : text;
   const useTemplate = async () =>
-    sendTemplate(env, to, env.TEMPLATE_NAME || 'reminder', env.TEMPLATE_LANG || 'en', text);
+    sendTemplate(env, to, env.TEMPLATE_NAME || 'reminder', env.TEMPLATE_LANG || 'en', compact);
 
   if (!inWindow) return useTemplate();
   try {
-    return await sendText(env, to, `⏰ Reminder: ${text}\n(Reply "snooze 10" to push it)`);
+    const body = post
+      ? `⏰ Reminder: ${text}\n\n${post.text}\n\n(Copy it, post it, then say "posted ${post.id}". Or "snooze 30".)`
+      : `⏰ Reminder: ${text}\n(Reply "snooze 10" to push it)`;
+    return await sendText(env, to, body);
   } catch (error) {
     if (error.code === REENGAGEMENT_ERROR) return useTemplate();
     throw error;
@@ -36,7 +41,9 @@ export async function runDueReminders(env, nowMs = Date.now()) {
 
   for (const r of results) {
     try {
-      await deliver(env, to, r.text, inWindow);
+      const post = await postForReminder(env, r.id);
+      await deliver(env, to, r.text, inWindow, post);
+      if (post) await markPostSent(env, post.id);
       sent++;
       await setState(env, 'last_reminder', JSON.stringify({ id: r.id, text: r.text }));
       if (r.repeat !== 'none') {

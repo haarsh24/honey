@@ -94,6 +94,8 @@ Needs the `GEMINI_KEY` secret (free key from aistudio.google.com).
 - **Weather:** "weather" or "will it rain in Ranchi?" (free Open-Meteo). The morning briefing includes today's forecast for `WEATHER_CITY` (default Ranchi), a joke opener and your live habit streaks.
 - **Typing indicator:** the chat shows "typing..." while the bot thinks. Set `TYPING_INDICATOR = "off"` in `wrangler.toml` to disable.
 - **Personality:** Honey is a funny friend with dry wit, light roasting and Indian everyday humour, and stays serious around health, money trouble or stress.
+- **Smart memory:** "what was that book Rahul recommended?" finds notes, journal entries, ideas and contact facts by meaning (free Workers AI embeddings, multilingual). Tell it people facts ("Rahul's wife is Neha, loves cricket") and ask "what do I know about Rahul?" before a call. Older items are indexed automatically the first time you search.
+- **LinkedIn post factory:** save ideas with "idea: why my WhatsApp bot costs ₹0". Then "turn my saved ideas into this week's posts" drafts up to 5 posts in your style (send a post of yours with "this is my style" to teach it), schedules each for 9:00 AM IST on Tue/Wed/Thu (say "at 8:30" to change the time) and pings you with the full text at that moment. Then "edit post 3: ...", "posted 3", "cancel post 3", "my scheduled posts". Posting times are a general rule of thumb, not data about your audience.
 
 Gemini's free tier may use inputs for Google's training, so keep sensitive photos and documents out.
 

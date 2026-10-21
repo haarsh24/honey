@@ -4,6 +4,8 @@ import { runDigest, runHabitNudge, runWatchCheck } from './jobs.js';
 import { handleIncoming } from './handler.js';
 import { cleanup, runDueReminders } from './reminders.js';
 import { verifySignature } from './util.js';
+import { embed } from './memory.js';
+import { synthesize } from './voice.js';
 
 /** Pull plain messages out of Meta's webhook payload. Status updates are ignored. */
 export function extractMessages(payload) {
@@ -72,6 +74,25 @@ export default {
         return new Response('OK', { status: 200 });
       }
       return new Response('Method not allowed', { status: 405 });
+    }
+
+    // Owner-only health probe used by the deploy workflow: checks the embedding and speech models for real.
+    if (url.pathname === '/selftest') {
+      if (!env.VERIFY_TOKEN || url.searchParams.get('token') !== env.VERIFY_TOKEN) return new Response('Forbidden', { status: 403 });
+      const out = {};
+      try {
+        const { model, vectors } = await embed(env, ['hello from the self test']);
+        out.embeddings = { ok: true, model, bytes: vectors[0].length };
+      } catch (error) {
+        out.embeddings = { ok: false, error: error.message.slice(0, 200) };
+      }
+      try {
+        const audio = await synthesize(env, 'Hello, this is a voice test.');
+        out.tts = { ok: true, bytes: audio.length, header: [...audio.slice(0, 3)].map((b) => b.toString(16)).join(' ') };
+      } catch (error) {
+        out.tts = { ok: false, error: error.message.slice(0, 200) };
+      }
+      return new Response(JSON.stringify(out), { headers: { 'content-type': 'application/json' } });
     }
 
     if (url.pathname === '/') return new Response('wa-assistant is running');

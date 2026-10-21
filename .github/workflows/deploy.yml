@@ -129,6 +129,17 @@ jobs:
           echo "::notice title=phone check::$(echo "$ph" | head -c 400)"
           echo "::notice title=owner number::length ${#OWNER_NUMBER}, starts $(printf %s "$OWNER_NUMBER" | head -c 4)"
 
+      - name: Live self-test of the deployed Worker (embeddings and speech)
+        continue-on-error: true
+        run: |
+          sub=$(curl -s -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{console.log(JSON.parse(d).result?.subdomain||"")}catch{console.log("")}})')
+          for i in 1 2 3; do
+            code=$(curl -s -o "$RUNNER_TEMP/st.json" -w '%{http_code}' "https://wa-assistant.${sub}.workers.dev/selftest?token=${VERIFY_TOKEN}")
+            [ "$code" = 200 ] && break
+            sleep 6
+          done
+          echo "::notice title=worker selftest::HTTP ${code} $(head -c 500 "$RUNNER_TEMP/st.json")"
+
       - name: Self-test web search, news and audio understanding
         continue-on-error: true
         run: |
