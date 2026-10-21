@@ -132,6 +132,7 @@ jobs:
       - name: Self-test web search, news and audio understanding
         continue-on-error: true
         run: |
+          echo "::notice title=gemini key::length ${#GEMINI_KEY}, starts $(printf %s "$GEMINI_KEY" | head -c 4), ends $(printf %s "$GEMINI_KEY" | tail -c 4)"
           node --input-type=module -e '
             import { TOOLS } from "./src/tools.js";
             import { buildDigest } from "./src/digest.js";
