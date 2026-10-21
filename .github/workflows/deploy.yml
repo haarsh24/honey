@@ -128,3 +128,17 @@ jobs:
           ph=$(curl -s -H "Authorization: Bearer ${WHATSAPP_TOKEN}" "https://graph.facebook.com/${v}/${PHONE_NUMBER_ID}?fields=display_phone_number,verified_name,quality_rating")
           echo "::notice title=phone check::$(echo "$ph" | head -c 400)"
           echo "::notice title=owner number::length ${#OWNER_NUMBER}, starts $(printf %s "$OWNER_NUMBER" | head -c 4)"
+
+      - name: Diagnostics (Gemini search, text-to-speech, prices)
+        continue-on-error: true
+        run: |
+          for model in gemini-flash-latest gemini-2.5-flash; do
+            code=$(curl -s -o "$RUNNER_TEMP/g.json" -w '%{http_code}' -X POST "https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent" -H "x-goog-api-key: ${GEMINI_KEY}" -H 'Content-Type: application/json' --data '{"contents":[{"parts":[{"text":"Search the web: latest petrol price in Ranchi today. Answer in one line."}]}],"tools":[{"google_search":{}}]}')
+            echo "::notice title=gemini search ${model}::HTTP ${code} $(head -c 350 "$RUNNER_TEMP/g.json" | tr '\n' ' ')"
+          done
+          code=$(curl -s -o "$RUNNER_TEMP/t.json" -w '%{http_code}' -X POST "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/myshell-ai/melotts" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H 'Content-Type: application/json' --data '{"prompt":"Hello there","lang":"en"}')
+          echo "::notice title=tts::HTTP ${code} $(head -c 200 "$RUNNER_TEMP/t.json" | tr '\n' ' ')"
+          code=$(curl -s -o "$RUNNER_TEMP/y.json" -w '%{http_code}' -A 'Mozilla/5.0 (compatible; wa-assistant)' "https://query1.finance.yahoo.com/v8/finance/chart/RELIANCE.NS?range=1d&interval=1d")
+          echo "::notice title=yahoo::HTTP ${code} $(head -c 150 "$RUNNER_TEMP/y.json" | tr '\n' ' ')"
+          code=$(curl -s -o "$RUNNER_TEMP/m.json" -w '%{http_code}' "https://api.mfapi.in/mf/search?q=parag")
+          echo "::notice title=mfapi::HTTP ${code} $(head -c 150 "$RUNNER_TEMP/m.json" | tr '\n' ' ')"
