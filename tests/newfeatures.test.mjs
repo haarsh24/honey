@@ -204,3 +204,19 @@ test('geminiWeb falls back to the lighter model when the first is over quota', a
   globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: 'bad key' } }), { status: 400 });
   await assert.rejects(geminiWeb({ GEMINI_KEY: 'k' }, { prompt: 'x' }), /400/);
 });
+
+test('synthesize accepts MP3 from a raw response and rejects WAV', async () => {
+  const { synthesize, looksLikeMp3 } = await import('../src/voice.js');
+  const mp3 = new Uint8Array([0x49, 0x44, 0x33, 4, 0, 0]);
+  const wav = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0]);
+  assert.ok(looksLikeMp3(mp3));
+  assert.ok(looksLikeMp3(new Uint8Array([0xff, 0xfb, 0x90, 0])));
+  assert.ok(!looksLikeMp3(wav));
+  const calls = [];
+  const envMp3 = { AI: { run: async (model, input, opts) => { calls.push({ model, input, opts }); return new Response(mp3); } } };
+  assert.deepEqual([...(await synthesize(envMp3, 'hello'))], [...mp3]);
+  assert.equal(calls[0].model, '@cf/deepgram/aura-1');
+  assert.equal(calls[0].input.encoding, 'mp3');
+  assert.equal(calls[0].opts.returnRawResponse, true);
+  await assert.rejects(synthesize({ AI: { run: async () => new Response(wav) } }, 'hello'), /MP3/);
+});

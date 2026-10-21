@@ -5,7 +5,7 @@ import { handleIncoming } from './handler.js';
 import { cleanup, runDueReminders } from './reminders.js';
 import { verifySignature } from './util.js';
 import { embed } from './memory.js';
-import { synthesize } from './voice.js';
+import { looksLikeMp3, synthesize } from './voice.js';
 
 /** Pull plain messages out of Meta's webhook payload. Status updates are ignored. */
 export function extractMessages(payload) {
@@ -88,7 +88,7 @@ export default {
       }
       try {
         const audio = await synthesize(env, 'Hello, this is a voice test.');
-        out.tts = { ok: true, bytes: audio.length, header: [...audio.slice(0, 3)].map((b) => b.toString(16)).join(' ') };
+        out.tts = { ok: true, bytes: audio.length, mp3: looksLikeMp3(audio) };
       } catch (error) {
         out.tts = { ok: false, error: error.message.slice(0, 200) };
       }
