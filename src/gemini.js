@@ -13,13 +13,13 @@ export function toBase64(bytes) {
 const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 
 /** POSTs a generateContent body; tries the configured model, then a lighter one if busy, over quota or gone. */
-async function generate(env, body) {
+async function generate(env, body, models) {
   if (!env.GEMINI_KEY) {
     const error = new Error('GEMINI_KEY is not set');
     error.code = 'NO_KEY';
     throw error;
   }
-  const models = [...new Set([env.GEMINI_MODEL || 'gemini-flash-latest', 'gemini-flash-lite-latest'])];
+  models = models ?? [...new Set([env.GEMINI_MODEL || 'gemini-flash-latest', 'gemini-flash-lite-latest'])];
   let lastError;
   for (const model of models) {
     const controller = new AbortController();
@@ -84,6 +84,17 @@ export async function geminiWeb(env, { prompt }) {
   const text = await generate(env, {
     contents: [{ parts: [{ text: prompt }] }],
     tools: [{ url_context: {} }],
+    generationConfig: { temperature: 0.2 },
+  });
+  return { text: text.slice(0, 3000) };
+}
+
+/** Google Search grounding (needs a paid-tier key). Returns { text }; throws when the key has no quota for it. */
+export async function geminiSearch(env, { prompt }) {
+  if (typeof env.__gemini === 'function') return { text: await env.__gemini({ prompt, kind: 'search' }) }; // test hook
+  const text = await generate(env, {
+    contents: [{ parts: [{ text: prompt }] }],
+    tools: [{ google_search: {} }],
     generationConfig: { temperature: 0.2 },
   });
   return { text: text.slice(0, 3000) };

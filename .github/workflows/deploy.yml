@@ -135,11 +135,12 @@ jobs:
           node --input-type=module -e '
             import { TOOLS } from "./src/tools.js";
             import { buildDigest } from "./src/digest.js";
-            import { gemini } from "./src/gemini.js";
+            import { gemini, geminiSearch } from "./src/gemini.js";
             const env = { GEMINI_KEY: process.env.GEMINI_KEY, GEMINI_MODEL: "gemini-flash-latest" };
             const show = (t, v) => console.log(`::notice title=${t}::${String(v).replace(/\s+/g, " ").slice(0, 400)}`);
             try { show("web_search", JSON.stringify(await TOOLS.web_search(env, { query: "latest petrol price in Ranchi" }))); } catch (e) { show("web_search error", e.message); }
             try { show("news", await buildDigest(env, ["AI"])); } catch (e) { show("news error", e.message); }
+            try { show("google search grounding", JSON.stringify(await geminiSearch(env, { prompt: "Latest petrol price in Ranchi today, one line." }))); } catch (e) { show("google search grounding error", e.message); }
             // one second of a 440 Hz tone as 16-bit mono WAV, just to see whether audio input is accepted
             const rate = 16000, n = rate, buf = Buffer.alloc(44 + n * 2);
             buf.write("RIFF", 0); buf.writeUInt32LE(36 + n * 2, 4); buf.write("WAVEfmt ", 8); buf.writeUInt32LE(16, 16);
