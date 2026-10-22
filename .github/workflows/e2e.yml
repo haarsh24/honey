@@ -1,0 +1,22 @@
+name: Live end-to-end check
+
+# Runs every feature through the real prompt, tools and network (Gemini as the model).
+# WhatsApp messages are captured, never sent. Trigger it by hand: Actions -> Live end-to-end check.
+on:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: APP_SECRET
+    env:
+      GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq espeak-ng imagemagick
+      - name: Run every feature
+        run: node --no-warnings scripts/e2e.mjs
