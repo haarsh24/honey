@@ -13,11 +13,71 @@ export async function getTopics(env) {
   }
 }
 
-async function headlines(env, topic) {
+const decode = (t) =>
+  t
+    .replace(/<!\[CDATA\[|\]\]>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;|&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+function ago(ms, now) {
+  const mins = Math.max(0, Math.round((now - ms) / 60000));
+  if (mins < 60) return `${Math.max(mins, 1)}m ago`;
+  if (mins < 48 * 60) return `${Math.round(mins / 60)}h ago`;
+  return `${Math.round(mins / 1440)}d ago`;
+}
+
+/** Parses a Google News RSS feed into [{ title, source, at }], newest first. */
+export function parseNewsRss(xml, now = Date.now()) {
+  const items = [];
+  const seen = new Set();
+  for (const m of String(xml).slice(0, 150000).matchAll(/<item>([\s\S]*?)<\/item>/g)) {
+    const body = m[1];
+    let title = decode(/<title>([\s\S]*?)<\/title>/.exec(body)?.[1] ?? '');
+    const source = decode(/<source[^>]*>([\s\S]*?)<\/source>/.exec(body)?.[1] ?? '');
+    if (source && title.endsWith(` - ${source}`)) title = title.slice(0, -(source.length + 3)).trim();
+    const at = Date.parse(/<pubDate>([\s\S]*?)<\/pubDate>/.exec(body)?.[1] ?? '');
+    const key = title.toLowerCase().slice(0, 60);
+    if (!title || seen.has(key)) continue;
+    seen.add(key);
+    items.push({ title, source, at: Number.isFinite(at) ? at : null });
+    if (items.length >= 30) break;
+  }
+  return items.sort((a, b) => (b.at ?? 0) - (a.at ?? 0)).map((i) => ({ ...i, when: i.at ? ago(i.at, now) : '' }));
+}
+
+async function rssHeadlines(topic, now) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(`${topic} when:2d`)}&hl=en-IN&gl=IN&ceid=IN:en`;
+    const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; wa-assistant)' }, signal: controller.signal });
+    if (!response.ok) return [];
+    return parseNewsRss(await response.text(), now)
+      .slice(0, 5)
+      .map((i) => `- ${i.title} (${[i.source, i.when].filter(Boolean).join(', ')})`);
+  } catch {
+    return [];
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function searchHeadlines(env, topic) {
   const { text } = await geminiWeb(env, {
-    prompt: `Read this web search results page: ${searchUrl(`${topic} latest news today`)}\n\nList the 5 most important latest news headlines about "${topic}" from it (India focus when relevant). One line each, plain text, start each with "- ", end with the source site name in brackets. No links, no intro.`,
+    prompt: `Read this web search results page: ${searchUrl(`${topic} latest news today`)}\n\nList up to 5 real news headlines about "${topic}" from it (full sentences that say what happened, not site names or section titles). One line each, plain text, start each with "- ", end with the source site name in brackets. No links, no intro. If the page only has site names and no actual headlines, output nothing.`,
   });
   return text.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('-')).slice(0, 5);
+}
+
+async function headlines(env, topic, now = Date.now()) {
+  const rss = await rssHeadlines(topic, now); // real headlines straight from Google News
+  if (rss.length >= 2) return rss;
+  return searchHeadlines(env, topic); // backup route
 }
 
 /** Message text for the given topics (or the saved ones). Returns null when there are none. */

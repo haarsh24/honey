@@ -220,3 +220,26 @@ test('synthesize accepts MP3 from a raw response and rejects WAV', async () => {
   assert.equal(calls[0].opts.returnRawResponse, true);
   await assert.rejects(synthesize({ AI: { run: async () => new Response(wav) } }, 'hello'), /MP3/);
 });
+
+test('news digest uses real Google News headlines with source and age', async () => {
+  const { buildDigest, parseNewsRss } = await import('../src/digest.js');
+  const now = Date.parse('2026-10-22T07:00:00Z');
+  const xml = `<rss><channel>
+    <item><title>RBI keeps repo rate unchanged &amp; flags inflation - The Hindu</title><pubDate>Thu, 22 Oct 2026 05:30:00 GMT</pubDate><source url="https://thehindu.com">The Hindu</source></item>
+    <item><title>Sensex ends 300 points higher - Mint</title><pubDate>Thu, 22 Oct 2026 06:40:00 GMT</pubDate><source url="https://livemint.com">Mint</source></item>
+    <item><title>Sensex ends 300 points higher - Mint</title><pubDate>Thu, 22 Oct 2026 06:41:00 GMT</pubDate><source url="https://livemint.com">Mint</source></item>
+    <item><title><![CDATA[Old story - ET]]></title><pubDate>Mon, 19 Oct 2026 06:00:00 GMT</pubDate><source url="https://et.com">ET</source></item>
+  </channel></rss>`;
+  const items = parseNewsRss(xml, now);
+  assert.equal(items.length, 3); // duplicate removed
+  assert.equal(items[0].title, 'Sensex ends 300 points higher');
+  assert.equal(items[0].when, '20m ago');
+  assert.equal(items[1].title, 'RBI keeps repo rate unchanged & flags inflation');
+  let asked;
+  globalThis.fetch = async (url) => { asked = String(url); return new Response(xml); };
+  const env = makeEnv({ __gemini: async () => { throw new Error('backup route should not run'); } });
+  const text = await buildDigest(env, ['markets']);
+  assert.match(asked, /news\.google\.com\/rss\/search\?q=markets%20when%3A2d&hl=en-IN&gl=IN/);
+  assert.match(text, /- Sensex ends 300 points higher \(Mint, /);
+  assert.match(text, /RBI keeps repo rate unchanged & flags inflation \(The Hindu, /);
+});
