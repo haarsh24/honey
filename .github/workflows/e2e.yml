@@ -4,6 +4,11 @@ name: Live end-to-end check
 # WhatsApp messages are captured, never sent. Trigger it by hand: Actions -> Live end-to-end check.
 on:
   workflow_dispatch:
+    inputs:
+      only_probe:
+        description: 'Skip the full run'
+        required: false
+        default: 'no'
 
 jobs:
   e2e:
@@ -28,5 +33,9 @@ jobs:
       - name: Probe Gemini
         continue-on-error: true
         run: node --no-warnings scripts/probe_gemini.mjs
+      - name: Compare web sources
+        continue-on-error: true
+        run: node --no-warnings scripts/probe_web.mjs
       - name: Run every feature
+        if: ${{ github.event.inputs.only_probe != 'yes' }}
         run: node --no-warnings scripts/e2e.mjs
