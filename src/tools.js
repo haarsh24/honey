@@ -533,10 +533,21 @@ Object.assign(TOOLS, HABIT_TOOLS, MARKET_TOOLS, DIGEST_TOOLS, WORK_TOOLS, EXTRA_
 
 TOOLS.web_search = async (env, args) => {
   const query = cleanText(args.query);
-  const { text } = await geminiWeb(env, {
-    prompt: `Read this web search results page: ${searchUrl(query)}\n\nUsing the result titles and snippets, answer the question briefly (under 120 words) with specific numbers and dates where they appear. Name the sites you relied on. If the page does not contain the answer, say so plainly.\n\nQuestion: ${query}`,
-  });
-  return { answer: text };
+  const enc = encodeURIComponent(query);
+  // Several result pages, tried in order until one actually answers (search pages sometimes block or come back thin).
+  const pages = [searchUrl(query), `https://www.bing.com/search?q=${enc}`, `https://news.google.com/rss/search?q=${enc}&hl=en-IN&gl=IN&ceid=IN:en`];
+  let lastError;
+  for (const page of pages) {
+    try {
+      const { text } = await geminiWeb(env, {
+        prompt: `Read this page: ${page}\n\nQuestion: ${query}\nAnswer in under 100 words using only what the page shows, with the specific numbers and dates it gives, and name the sites you relied on. If the page does not contain the answer, reply exactly: NOT FOUND`,
+      });
+      if (text && !/NOT FOUND/i.test(text)) return { answer: text };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  return { error: lastError ? `Search failed: ${lastError.message}` : 'No clear answer found on the web for that. Say so plainly and suggest a source to check.' };
 };
 
 TOOLS.read_url = async (env, args) => {
