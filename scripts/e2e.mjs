@@ -132,7 +132,7 @@ const scenarios = [
   S('Quick answers', 'what day of the week is 15 August 2027?', { tools: ['calc_date'], reply: /Sunday/i }),
   S('Quick answers', 'what is 18% of 2450?', { reply: /441/ }),
   S('Quick answers', 'convert 50 USD to INR', { tools: ['convert_currency'], reply: /\d,?\d{3}/ }),
-  S('Quick answers', 'how many days till 25 December?', { reply: /\d+/ }),
+  S('Quick answers', 'how many days till 25 December?', { tools: ['calc_date'], reply: /\b64\b/ }),
   S('Quick answers', "translate 'where is the railway station' to Hindi", { reply: /[ऀ-ॿ]|stesh|station/i }),
   S('Quick answers', 'weather in Ranchi', { tools: ['weather'], reply: /°|C/ }),
   S('Web & markets', 'search latest petrol price in Ranchi', { tools: ['web_search'], reply: /10\d/ }),
