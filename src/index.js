@@ -95,6 +95,19 @@ export default {
       return new Response(JSON.stringify(out), { headers: { 'content-type': 'application/json' } });
     }
 
+    // Lets the live end-to-end check use the real production model. Same secret as /selftest; chat and embedding models only.
+    if (url.pathname === '/selftest/ai' && request.method === 'POST') {
+      if (!env.VERIFY_TOKEN || url.searchParams.get('token') !== env.VERIFY_TOKEN) return new Response('Forbidden', { status: 403 });
+      try {
+        const { model, input } = await request.json();
+        if (!/^@cf\/(meta\/llama|baai\/bge)/.test(String(model))) return new Response('Model not allowed', { status: 400 });
+        const result = await env.AI.run(model, input);
+        return new Response(JSON.stringify({ result }), { headers: { 'content-type': 'application/json' } });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: String(error.message).slice(0, 200) }), { status: 500, headers: { 'content-type': 'application/json' } });
+      }
+    }
+
     if (url.pathname === '/') return new Response('wa-assistant is running');
     return new Response('Not found', { status: 404 });
   },

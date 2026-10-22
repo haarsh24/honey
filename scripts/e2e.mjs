@@ -68,18 +68,17 @@ globalThis.fetch = async (url, init = {}) => {
   return realFetch(url, init);
 };
 
-// Real production model: Workers AI over Cloudflare's REST API (same models the Worker binding uses).
-const CF = `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/ai/run/`;
-const AI = process.env.CLOUDFLARE_API_TOKEN && process.env.CLOUDFLARE_ACCOUNT_ID ? {
-  async run(model, input, options = {}) {
-    const response = await realFetch(CF + model, { method: 'POST', headers: { Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
-    if (options.returnRawResponse) return response;
+// Real production model: calls go to the deployed Worker, which runs them on its Workers AI binding.
+const WORKER = process.env.WORKER_URL;
+const AI = WORKER && process.env.VERIFY_TOKEN ? {
+  async run(model, input) {
+    const response = await realFetch(`${WORKER}/selftest/ai?token=${encodeURIComponent(process.env.VERIFY_TOKEN)}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model, input }) });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok || data.success === false) throw new Error(`workers-ai ${response.status}: ${JSON.stringify(data.errors ?? data).slice(0, 120)}`);
+    if (!response.ok || data.error) throw new Error(`workers-ai ${response.status}: ${String(data.error ?? 'failed').slice(0, 100)}`);
     return data.result;
   },
 } : undefined;
-console.log(`::notice title=e2e model::${AI ? 'Workers AI (production model)' : 'Gemini stand-in (no Cloudflare token)'}`);
+console.log(`::notice title=e2e model::${AI ? 'Workers AI (production model)' : 'Gemini stand-in (worker URL missing)'}`);
 
 const env = {
   AI,
