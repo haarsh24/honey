@@ -133,19 +133,22 @@ export async function runAssistant(env, userText, history, nowMs, extra = '') {
   ];
 
   let toolsUsed = 0;
-  let nudged = false;
+  let nudges = 0;
   for (let step = 0; step < MAX_STEPS; step++) {
     const raw = await chat(env, messages);
     const parsed = parseModelJson(raw);
 
     const answer = !parsed ? raw.trim() : typeof parsed.reply === 'string' ? parsed.reply.trim() : null;
-    if (answer !== null && toolsUsed === 0 && !nudged && needsTool(userText, answer)) {
-      // The model says it did something (or quotes a live number) without calling a tool. Make it actually do it.
-      nudged = true;
+    if (answer !== null && toolsUsed === 0 && needsTool(userText, answer)) {
+      // The model says it did something (or quotes a live number) without calling a tool.
+      if (nudges >= 2) {
+        return "Hmm, I couldn't actually do that one just now, so nothing was changed. Could you say it once more? 🙏";
+      }
+      nudges += 1;
       messages.push({ role: 'assistant', content: JSON.stringify({ reply: answer }) });
       messages.push({
         role: 'user',
-        content: 'You answered without calling a tool, so nothing was saved or looked up. Call the right tool now. Never claim an action is done and never quote live prices, weather or news without a tool result.',
+        content: 'WRONG: you replied without calling a tool, so nothing was saved or looked up. Reply now with ONLY a tool call in exactly this shape: {"tool":"<name>","args":{...}} using the tool that matches the request. Never claim an action is done, and never quote live prices, weather or news, without a TOOL_RESULT.',
       });
       continue;
     }

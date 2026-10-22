@@ -7,7 +7,7 @@ const MAX_TOKENS = 600;
 const TEMPERATURE = 0.35; // low enough for reliable tool calls, high enough for jokes
 const WORKERS_AI_TIMEOUT_MS = 20000; // then fall through to the next provider
 
-async function openAICompatible({ url, key, model, messages, name, opts = {} }) {
+async function openAICompatible({ url, key, model, messages, name, opts = {}, extra = {} }) {
   if (!key) throw new Error(`${name} is not configured`);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -15,7 +15,7 @@ async function openAICompatible({ url, key, model, messages, name, opts = {} }) 
     const response = await fetch(url, {
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages, temperature: opts.temperature ?? TEMPERATURE, max_tokens: opts.maxTokens ?? MAX_TOKENS }),
+      body: JSON.stringify({ model, messages, temperature: opts.temperature ?? TEMPERATURE, max_tokens: opts.maxTokens ?? MAX_TOKENS, ...extra }),
       signal: controller.signal,
     });
     const data = await response.json().catch(() => ({}));
@@ -74,7 +74,9 @@ const PROVIDERS = {
           key: env.GEMINI_KEY,
           model,
           messages,
-          opts,
+          // Thinking models can spend the whole token budget on hidden reasoning and return nothing.
+          opts: { ...opts, maxTokens: Math.max(opts.maxTokens ?? 0, 1500) },
+          extra: { reasoning_effort: 'low' },
         });
       } catch (error) {
         lastError = error;

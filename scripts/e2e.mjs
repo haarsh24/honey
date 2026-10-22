@@ -68,7 +68,21 @@ globalThis.fetch = async (url, init = {}) => {
   return realFetch(url, init);
 };
 
+// Real production model: Workers AI over Cloudflare's REST API (same models the Worker binding uses).
+const CF = `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/ai/run/`;
+const AI = process.env.CLOUDFLARE_API_TOKEN && process.env.CLOUDFLARE_ACCOUNT_ID ? {
+  async run(model, input, options = {}) {
+    const response = await realFetch(CF + model, { method: 'POST', headers: { Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+    if (options.returnRawResponse) return response;
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.success === false) throw new Error(`workers-ai ${response.status}: ${JSON.stringify(data.errors ?? data).slice(0, 120)}`);
+    return data.result;
+  },
+} : undefined;
+console.log(`::notice title=e2e model::${AI ? 'Workers AI (production model)' : 'Gemini stand-in (no Cloudflare token)'}`);
+
 const env = {
+  AI,
   DB: makeDB(),
   OWNER_NUMBER: OWNER,
   PHONE_NUMBER_ID: '123',
@@ -77,7 +91,7 @@ const env = {
   TYPING_INDICATOR: 'off',
   GEMINI_KEY: process.env.GEMINI_KEY,
   GEMINI_MODEL: 'gemini-flash-latest',
-  LLM_PROVIDERS: 'gemini',
+  LLM_PROVIDERS: AI ? 'workers-ai,gemini' : 'gemini',
   DEFAULT_COUNTRY_CODE: '91',
 };
 
@@ -168,7 +182,7 @@ async function run(label, group, send, expectTools = [], expectReply, extraCheck
   if (/couldn't make sense|buffered|got stuck|AI providers failed/i.test(reply)) failures.push(`error reply (${errs.join(' | ') || 'no log'})`);
   if (extraCheck) failures.push(...extraCheck(reply));
   results.push({ n, group, label, tools: [...trace], reply, failures });
-  await sleep(Number(process.env.E2E_DELAY_MS || 9000));
+  await sleep(Number(process.env.E2E_DELAY_MS || 3000));
 }
 
 let id = 1000;
