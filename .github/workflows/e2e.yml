@@ -30,6 +30,9 @@ jobs:
         run: |
           sub=$(curl -s -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{console.log(JSON.parse(d).result?.subdomain||"")}catch{console.log("")}})')
           echo "WORKER_URL=https://wa-assistant.${sub}.workers.dev" >> "$GITHUB_ENV"
+      - name: Probe live models
+        continue-on-error: true
+        run: node --no-warnings scripts/probe_ai.mjs
       - name: Probe Gemini
         continue-on-error: true
         run: node --no-warnings scripts/probe_gemini.mjs
