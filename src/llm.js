@@ -80,7 +80,7 @@ const PROVIDERS = {
         });
       } catch (error) {
         lastError = error;
-        if (!/ (429|500|502|503|504|404)[: ]/.test(error.message)) throw error; // only busy/over-quota errors try the next model
+        if (/ (400|401|403)[: ]/.test(error.message)) throw error; // a bad key or request will not improve on another model; anything else (busy, slow, empty) tries the next one
       }
     }
     throw lastError;

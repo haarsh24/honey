@@ -198,7 +198,10 @@ export async function handleIncoming(env, msg, nowMs = Date.now()) {
   } catch (error) {
     console.error('Assistant failed:', error.message);
     await typing;
-    await sendText(env, owner, 'My brain just buffered 🙃 Try again in a minute?');
+    const quota = /daily free allocation|4006/i.test(error.message);
+    await sendText(env, owner, quota
+      ? 'My free AI allowance for today is used up and the backup is busy too 😅 Try again in a few minutes, or after 5:30 AM IST when it resets.'
+      : 'My brain just buffered 🙃 Try again in a minute?');
     return { replied: true, error: true };
   }
 
