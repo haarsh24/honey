@@ -111,6 +111,18 @@ function historyToMessages(history) {
   );
 }
 
+const ACTION_CLAIM = /\b(added|saved|logged|noted|marked|scheduled|deleted|removed|updated|snoozed|reminder set|alert set|got it)\b/i;
+const LIVE_DATA = /\b(price|nav|nifty|sensex|stock|share|weather|temperature|forecast|news|headlines|petrol|diesel|score|rate)\b/i;
+const CHATTY = /^(hi|hello|hey|thanks|thank you|ok|okay|good morning|good night)\b/i;
+
+/** True when a reply claims an action or live data but no tool ran. */
+export function needsTool(userText, answer) {
+  if (/^\s*\[(Image|Document)/.test(userText || '')) return false;
+  if (!userText || CHATTY.test(userText.trim()) || userText.trim().startsWith('/')) return false;
+  if (ACTION_CLAIM.test(answer)) return true;
+  return LIVE_DATA.test(userText) && /\d/.test(answer);
+}
+
 /** Runs the tool loop and returns the text to send back to the user. */
 export async function runAssistant(env, userText, history, nowMs, extra = '') {
   const previousUser = [...history].reverse().find((m) => m.role === 'user')?.content ?? '';
@@ -120,9 +132,23 @@ export async function runAssistant(env, userText, history, nowMs, extra = '') {
     { role: 'user', content: userText },
   ];
 
+  let toolsUsed = 0;
+  let nudged = false;
   for (let step = 0; step < MAX_STEPS; step++) {
     const raw = await chat(env, messages);
     const parsed = parseModelJson(raw);
+
+    const answer = !parsed ? raw.trim() : typeof parsed.reply === 'string' ? parsed.reply.trim() : null;
+    if (answer !== null && toolsUsed === 0 && !nudged && needsTool(userText, answer)) {
+      // The model says it did something (or quotes a live number) without calling a tool. Make it actually do it.
+      nudged = true;
+      messages.push({ role: 'assistant', content: JSON.stringify({ reply: answer }) });
+      messages.push({
+        role: 'user',
+        content: 'You answered without calling a tool, so nothing was saved or looked up. Call the right tool now. Never claim an action is done and never quote live prices, weather or news without a tool result.',
+      });
+      continue;
+    }
 
     if (!parsed) return raw.trim().slice(0, 3500); // model answered in plain text
     if (typeof parsed.reply === 'string') return parsed.reply.trim() || 'Done.';
@@ -130,6 +156,8 @@ export async function runAssistant(env, userText, history, nowMs, extra = '') {
     if (typeof parsed.tool === 'string') {
       const args = parsed.args && typeof parsed.args === 'object' ? parsed.args : {};
       const result = await runTool(env, parsed.tool, args, { now: nowMs });
+      toolsUsed += 1;
+      if (typeof result?.verbatim === 'string' && result.verbatim) return result.verbatim.slice(0, 3500);
       messages.push({ role: 'assistant', content: JSON.stringify({ tool: parsed.tool, args }) });
       messages.push({
         role: 'user',

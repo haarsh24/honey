@@ -127,3 +127,12 @@ test('typing indicator is sent when enabled and never blocks the reply', async (
 test('openers rotate daily', () => {
   assert.notEqual(morningOpener(NOW), morningOpener(NOW + 24 * 3600 * 1000));
 });
+
+import { needsTool } from '../src/assistant.js';
+test('needsTool catches claimed actions and live numbers without a tool', () => {
+  assert.equal(needsTool('add task: renew insurance', "'Renew insurance' added to your task list."), true);
+  assert.equal(needsTool('what is the Nifty at?', '24,249.00 (down 0.8%)'), true);
+  assert.equal(needsTool('hi', 'Hey! Got it, what is up?'), false);
+  assert.equal(needsTool('[Image] receipt', 'Logged 450 already'), false);
+  assert.equal(needsTool('tell me a joke', 'Why did the chicken cross the road?'), false);
+});

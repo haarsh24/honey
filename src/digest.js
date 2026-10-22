@@ -117,6 +117,6 @@ export const DIGEST_TOOLS = {
   async news_now(env, args) {
     const topics = typeof args.topic === 'string' && args.topic.trim() ? [args.topic.trim().slice(0, 60)] : [];
     const text = await buildDigest(env, topics);
-    return text ? { digest: text } : { error: 'No topics saved yet. Say which topics you want, like "news on AI and markets".' };
+    return text ? { digest: text, verbatim: text } : { error: 'No topics saved yet. Say which topics you want, like "news on AI and markets".' };
   },
 };
