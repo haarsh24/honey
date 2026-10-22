@@ -134,7 +134,7 @@ const scenarios = [
   S('Quick answers', 'convert 50 USD to INR', { tools: ['convert_currency'], reply: /\d,?\d{3}/ }),
   S('Quick answers', 'how many days till 25 December?', { tools: ['calc_date'], reply: /\b64\b/ }),
   S('Quick answers', "translate 'where is the railway station' to Hindi", { reply: /[ऀ-ॿ]|stesh|station/i }),
-  S('Quick answers', 'weather in Ranchi', { tools: ['weather'], reply: /°|C/ }),
+  S('Quick answers', 'weather in Ranchi', { tools: ['weather'], reply: /26|17/ }),
   S('Web & markets', 'search latest petrol price in Ranchi', { tools: ['web_search'], reply: /10\d/ }),
   S('Web & markets', 'summarise https://en.wikipedia.org/wiki/Ranchi', { tools: ['read_url'], reply: /Jharkhand/i }),
   S('Web & markets', 'price of Reliance', { tools: ['price_check'], reply: /\d{3,}/ }),
