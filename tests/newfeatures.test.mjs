@@ -239,7 +239,18 @@ test('news digest uses real Google News headlines with source and age', async ()
   globalThis.fetch = async (url) => { asked = String(url); return new Response(xml); };
   const env = makeEnv({ __gemini: async () => { throw new Error('backup route should not run'); } });
   const text = await buildDigest(env, ['markets']);
-  assert.match(asked, /news\.google\.com\/rss\/search\?q=markets%20when%3A2d&hl=en-IN&gl=IN/);
+  assert.match(asked, /bing\.com\/news\/search\?q=markets&format=rss/);
   assert.match(text, /- Sensex ends 300 points higher \(Mint, /);
   assert.match(text, /RBI keeps repo rate unchanged & flags inflation \(The Hindu, /);
+
+  // Bing down -> Google News is tried next; both down -> the backup failing must not blank the topic with an error line.
+  const urls = [];
+  globalThis.fetch = async (url) => { urls.push(String(url)); return String(url).includes('bing.com') ? new Response('blocked', { status: 503 }) : new Response(xml); };
+  const viaGoogle = await buildDigest(env, ['markets']);
+  assert.match(urls[1], /news\.google\.com/);
+  assert.match(viaGoogle, /Sensex ends 300 points higher/);
+  globalThis.fetch = async () => new Response('nope', { status: 503 });
+  const none = await buildDigest(makeEnv({ __gemini: async () => { throw new Error('quota'); } }), ['markets']);
+  assert.match(none, /Nothing fresh found/);
+  assert.doesNotMatch(none, /Could not fetch/);
 });
