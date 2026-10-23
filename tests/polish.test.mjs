@@ -136,3 +136,13 @@ test('needsTool catches claimed actions and live numbers without a tool', () => 
   assert.equal(needsTool('[Image] receipt', 'Logged 450 already'), false);
   assert.equal(needsTool('tell me a joke', 'Why did the chicken cross the road?'), false);
 });
+
+import { parseNewsRss } from '../src/digest.js';
+test('parseNewsRss reads Bing News items (News:Source tag)', () => {
+  const xml = `<rss><channel><item><title>OpenAI ships a new model for Indian languages</title><pubDate>Fri, 23 Oct 2026 03:00:00 GMT</pubDate><News:Source>Mint</News:Source></item><item><title>Sensex ends higher</title><pubDate>Fri, 23 Oct 2026 04:00:00 GMT</pubDate><News:Source>Reuters</News:Source></item></channel></rss>`;
+  const items = parseNewsRss(xml, Date.parse('2026-10-23T05:00:00Z'));
+  assert.equal(items.length, 2);
+  assert.equal(items[0].title, 'Sensex ends higher');
+  assert.equal(items[0].source, 'Reuters');
+  assert.equal(items[0].when, '1h ago');
+});

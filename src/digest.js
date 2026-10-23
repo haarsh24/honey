@@ -38,7 +38,7 @@ export function parseNewsRss(xml, now = Date.now()) {
   for (const m of String(xml).slice(0, 150000).matchAll(/<item>([\s\S]*?)<\/item>/g)) {
     const body = m[1];
     let title = decode(/<title>([\s\S]*?)<\/title>/.exec(body)?.[1] ?? '');
-    const source = decode(/<source[^>]*>([\s\S]*?)<\/source>/.exec(body)?.[1] ?? '');
+    const source = decode(/<(?:News:)?source[^>]*>([\s\S]*?)<\/(?:News:)?source>/i.exec(body)?.[1] ?? '');
     if (source && title.endsWith(` - ${source}`)) title = title.slice(0, -(source.length + 3)).trim();
     const at = Date.parse(/<pubDate>([\s\S]*?)<\/pubDate>/.exec(body)?.[1] ?? '');
     const key = title.toLowerCase().slice(0, 60);
@@ -50,21 +50,30 @@ export function parseNewsRss(xml, now = Date.now()) {
   return items.sort((a, b) => (b.at ?? 0) - (a.at ?? 0)).map((i) => ({ ...i, when: i.at ? ago(i.at, now) : '' }));
 }
 
+// Google News blocks requests that come from Cloudflare's network (503), Bing News answers them, so Bing goes first.
+const FEEDS = (topic) => [
+  `https://www.bing.com/news/search?q=${encodeURIComponent(topic)}&format=rss&setmkt=en-IN&qft=sortbydate%3d%221%22`,
+  `https://news.google.com/rss/search?q=${encodeURIComponent(`${topic} when:2d`)}&hl=en-IN&gl=IN&ceid=IN:en`,
+];
+
 async function rssHeadlines(topic, now) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
-  try {
-    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(`${topic} when:2d`)}&hl=en-IN&gl=IN&ceid=IN:en`;
-    const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; wa-assistant)' }, signal: controller.signal });
-    if (!response.ok) return [];
-    return parseNewsRss(await response.text(), now)
-      .slice(0, 5)
-      .map((i) => `- ${i.title} (${[i.source, i.when].filter(Boolean).join(', ')})`);
-  } catch {
-    return [];
-  } finally {
-    clearTimeout(timer);
+  for (const url of FEEDS(topic)) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    try {
+      const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; wa-assistant)' }, signal: controller.signal });
+      if (!response.ok) continue;
+      const lines = parseNewsRss(await response.text(), now)
+        .slice(0, 5)
+        .map((i) => `- ${i.title} (${[i.source, i.when].filter(Boolean).join(', ')})`);
+      if (lines.length >= 2) return lines;
+    } catch {
+      // try the next feed
+    } finally {
+      clearTimeout(timer);
+    }
   }
+  return [];
 }
 
 async function searchHeadlines(env, topic) {
@@ -75,9 +84,13 @@ async function searchHeadlines(env, topic) {
 }
 
 async function headlines(env, topic, now = Date.now()) {
-  const rss = await rssHeadlines(topic, now); // real headlines straight from Google News
+  const rss = await rssHeadlines(topic, now); // real headlines straight from a news feed
   if (rss.length >= 2) return rss;
-  return searchHeadlines(env, topic); // backup route
+  try {
+    return await searchHeadlines(env, topic); // backup route
+  } catch {
+    return [];
+  }
 }
 
 /** Message text for the given topics (or the saved ones). Returns null when there are none. */
@@ -88,7 +101,7 @@ export async function buildDigest(env, topics) {
     list.map(async (topic) => {
       try {
         const lines = await headlines(env, topic);
-        return lines.length ? `*${topic}*\n${lines.join('\n')}` : `*${topic}*\n- Nothing fresh found`;
+        return lines.length ? `*${topic}*\n${lines.join('\n')}` : `*${topic}*\n- Nothing fresh found right now, ask me again in a bit`;
       } catch {
         return `*${topic}*\n- Could not fetch this one right now`;
       }

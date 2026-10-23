@@ -1,3 +1,4 @@
+import { buildDigest } from './digest.js';
 import { runBriefing, runJournalPrompt, runWeekly } from './briefing.js';
 import { runDrill } from './learning.js';
 import { runDigest, runHabitNudge, runWatchCheck } from './jobs.js';
@@ -107,6 +108,11 @@ export default {
         } catch (error) {
           out.news[name] = { error: error.message.slice(0, 80) };
         }
+      }
+      try {
+        out.news.sample = ((await buildDigest(env, ['AI'])) || '').split('\n').slice(2, 4).join(' | ').slice(0, 260);
+      } catch (error) {
+        out.news.sample = `error ${error.message.slice(0, 80)}`;
       }
       return new Response(JSON.stringify(out), { headers: { 'content-type': 'application/json' } });
     }
