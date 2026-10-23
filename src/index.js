@@ -92,6 +92,22 @@ export default {
       } catch (error) {
         out.tts = { ok: false, error: error.message.slice(0, 200) };
       }
+      // Which news sources answer from Cloudflare's network?
+      out.news = {};
+      const srcs = {
+        google: 'https://news.google.com/rss/search?q=AI%20when%3A2d&hl=en-IN&gl=IN&ceid=IN:en',
+        bing: 'https://www.bing.com/news/search?q=AI&format=rss&setmkt=en-IN',
+        yahoo: 'https://news.search.yahoo.com/rss?p=AI',
+      };
+      for (const [name, u] of Object.entries(srcs)) {
+        try {
+          const r = await fetch(u, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; wa-assistant)' } });
+          const t = await r.text();
+          out.news[name] = { status: r.status, items: (t.match(/<item>/g) || []).length, head: r.ok ? '' : t.replace(/\s+/g, ' ').slice(0, 80) };
+        } catch (error) {
+          out.news[name] = { error: error.message.slice(0, 80) };
+        }
+      }
       return new Response(JSON.stringify(out), { headers: { 'content-type': 'application/json' } });
     }
 

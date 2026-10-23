@@ -138,7 +138,7 @@ jobs:
             [ "$code" = 200 ] && break
             sleep 6
           done
-          echo "::notice title=worker selftest::HTTP ${code} $(head -c 500 "$RUNNER_TEMP/st.json")"
+          echo "::notice title=worker selftest::HTTP ${code} $(head -c 900 "$RUNNER_TEMP/st.json")"
 
       - name: Self-test web search, news and audio understanding
         continue-on-error: true
