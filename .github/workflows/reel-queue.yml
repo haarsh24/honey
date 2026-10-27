@@ -54,6 +54,7 @@ jobs:
 
       - name: Commit the queue
         run: |
+          git checkout -- wrangler.toml
           git config user.name "reel-bot"
           git config user.email "reel-bot@users.noreply.github.com"
           git add reel-queue/reel-ideas.json reel-queue/done.txt
