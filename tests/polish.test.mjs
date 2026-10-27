@@ -146,3 +146,23 @@ test('parseNewsRss reads Bing News items (News:Source tag)', () => {
   assert.equal(items[0].source, 'Reuters');
   assert.equal(items[0].when, '1h ago');
 });
+
+import { pickHeadlines, queryFor } from '../src/digest.js';
+test('digest drops price-listing pages and repeats of one story, and adds India to money topics', () => {
+  const items = [
+    { title: 'Lula win rattles Brazil markets over spending spree fears', source: 'France 24', when: '11h ago' },
+    { title: "Lula's win shocks Brazil's financial markets", source: 'BBC', when: '12h ago' },
+    { title: 'Markets Don’t Vote for Lula in Brazil', source: 'WSJ', when: '11h ago' },
+    { title: 'Vegetable Price Today in Ranchi – 14 Oct 2026', source: 'Oneindia', when: '34h ago' },
+    { title: 'LPG Price in Ranchi', source: 'Goodreturns', when: '34h ago' },
+    { title: 'Diesel Price in Ranchi', source: 'Goodreturns', when: '34h ago' },
+    { title: 'Jharkhand BJP stages protest in Ranchi over Kharge remarks', source: 'PTI', when: '14h ago' },
+    { title: 'Ranji Highlights: Badoni ton helps Delhi start strong in Ranchi', source: 'Cricbuzz', when: '28h ago' },
+  ];
+  const picked = pickHeadlines(items).map((i) => i.source);
+  assert.deepEqual(picked, ['France 24', 'PTI', 'Cricbuzz']);
+  assert.equal(queryFor('markets'), 'markets India');
+  assert.equal(queryFor('US stock market'), 'US stock market');
+  assert.equal(queryFor('AI'), 'AI');
+  assert.equal(queryFor('Ranchi'), 'Ranchi');
+});

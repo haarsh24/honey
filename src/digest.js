@@ -50,10 +50,36 @@ export function parseNewsRss(xml, now = Date.now()) {
   return items.sort((a, b) => (b.at ?? 0) - (a.at ?? 0)).map((i) => ({ ...i, when: i.at ? ago(i.at, now) : '' }));
 }
 
+const FINANCE = /\b(markets?|stocks?|shares?|sensex|nifty|economy|economic|finance|financial|business|investing|investment|mutual funds?|ipo|rbi|budget|inflation|rupee)\b/i;
+const SEO_PAGE = /\b(price|prices|rate|rates)\b.*\b(today|in [A-Z][a-z]+)\b|\b(today|in [A-Z][a-z]+)\b.*\b(price|rates?)\s*$|\bhoroscope\b|\bpanchang\b|\b(petrol|diesel|lpg|cng|gold|silver|vegetable|sabzi) (price|rate)/i;
+const SEO_SOURCE = /goodreturns|mypetrolprice|oneindia.*price|bankbazaar|policybazaar|astrosage/i;
+const STOP = new Set(['about', 'after', 'amid', 'their', 'there', 'these', 'those', 'which', 'while', 'where', 'what', 'with', 'from', 'over', 'into', 'this', 'that', 'will', 'says', 'said', 'news', 'today']);
+const words = (t) => new Set(String(t).toLowerCase().replace(/['’]s\b/g, '').split(/[^a-z0-9]+/).filter((w) => w.length > 3 && !STOP.has(w)));
+
+/** Query text: money topics are Indian-market news for this user unless they already name a place. */
+export function queryFor(topic) {
+  return FINANCE.test(topic) && !/\b(india|indian|us|usa|global|world|china|europe|uk)\b/i.test(topic) ? `${topic} India` : topic;
+}
+
+/** Drops price-listing/SEO pages and repeats of the same story, keeps order, returns at most n. */
+export function pickHeadlines(items, n = 5) {
+  const out = [];
+  const seen = [];
+  for (const item of items) {
+    if (SEO_PAGE.test(item.title) || SEO_SOURCE.test(item.source || '')) continue;
+    const w = words(item.title);
+    if (seen.some((o) => [...w].filter((x) => o.has(x)).length >= 3)) continue; // same story as one already picked
+    seen.push(w);
+    out.push(item);
+    if (out.length >= n) break;
+  }
+  return out;
+}
+
 // Google News blocks requests that come from Cloudflare's network (503), Bing News answers them, so Bing goes first.
 const FEEDS = (topic) => [
-  `https://www.bing.com/news/search?q=${encodeURIComponent(topic)}&format=rss&setmkt=en-IN&qft=sortbydate%3d%221%22`,
-  `https://news.google.com/rss/search?q=${encodeURIComponent(`${topic} when:2d`)}&hl=en-IN&gl=IN&ceid=IN:en`,
+  `https://www.bing.com/news/search?q=${encodeURIComponent(queryFor(topic))}&format=rss&setmkt=en-IN&qft=sortbydate%3d%221%22`,
+  `https://news.google.com/rss/search?q=${encodeURIComponent(`${queryFor(topic)} when:2d`)}&hl=en-IN&gl=IN&ceid=IN:en`,
 ];
 
 async function rssHeadlines(topic, now) {
@@ -63,8 +89,7 @@ async function rssHeadlines(topic, now) {
     try {
       const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; wa-assistant)' }, signal: controller.signal });
       if (!response.ok) continue;
-      const lines = parseNewsRss(await response.text(), now)
-        .slice(0, 5)
+      const lines = pickHeadlines(parseNewsRss(await response.text(), now), 5)
         .map((i) => `- ${i.title} (${[i.source, i.when].filter(Boolean).join(', ')})`);
       if (lines.length >= 2) return lines;
     } catch {

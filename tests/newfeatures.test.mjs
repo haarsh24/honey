@@ -239,7 +239,7 @@ test('news digest uses real Google News headlines with source and age', async ()
   globalThis.fetch = async (url) => { asked = String(url); return new Response(xml); };
   const env = makeEnv({ __gemini: async () => { throw new Error('backup route should not run'); } });
   const text = await buildDigest(env, ['markets']);
-  assert.match(asked, /bing\.com\/news\/search\?q=markets&format=rss/);
+  assert.match(asked, /bing\.com\/news\/search\?q=markets%20India&format=rss/);
   assert.match(text, /- Sensex ends 300 points higher \(Mint, /);
   assert.match(text, /RBI keeps repo rate unchanged & flags inflation \(The Hindu, /);
 
