@@ -7,6 +7,7 @@ import { formatIST } from './time.js';
 import { handleMedia } from './media.js';
 import { quizContext, quizNow } from './learning.js';
 import { sendVoiceReply } from './voice.js';
+import { reelCommand } from './reels.js';
 
 const MEDIA_TYPES = ['audio', 'image', 'document'];
 
@@ -32,6 +33,7 @@ const HELP_TEXT = `Honey here, your personal sidekick with zero salary demands �
 - Work: "write a LinkedIn post about X", "save post idea: ...", "write my standup"
 - Memory: "what was that book Rahul recommended?", "Rahul's wife is Neha, loves cricket", "what do I know about Rahul?"
 - LinkedIn: "idea: ...", then "turn my saved ideas into this week's posts" (drafts, schedules, pings you)
+- Reels: "/makereel <idea>" queues a reel idea for Claude, "/reels" shows the queue
 - Quick lists (instant): "tasks", "reminders", "notes", "habits"
 - Oops buttons: "undo" removes what I just added, "snooze 10" pushes a reminder that just rang
 - Weather: "weather" or "will it rain in Ranchi?"
@@ -167,6 +169,19 @@ export async function handleIncoming(env, msg, nowMs = Date.now()) {
       await sendText(env, owner, 'My quiz brain tripped 🥴 Try /quiz again in a minute.');
     }
     return { replied: true };
+  }
+  if (command.startsWith('/makereel') || command.startsWith('/reels')) {
+    try {
+      const reply = await reelCommand(env, text, nowMs);
+      if (reply) {
+        await sendText(env, owner, reply);
+        return { replied: true };
+      }
+    } catch (error) {
+      console.error('Reel command failed:', error.message);
+      await sendText(env, owner, 'Could not save that reel idea just now 😵 Try /makereel again in a minute.');
+      return { replied: true, error: true };
+    }
   }
   if (command === '/help' || command === 'help') {
     await sendText(env, owner, HELP_TEXT);

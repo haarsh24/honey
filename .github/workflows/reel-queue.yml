@@ -1,0 +1,61 @@
+name: Reel queue sync
+
+# Exports the /makereel ideas waiting in D1 to reel-queue/reel-ideas.json, and marks ids listed in
+# reel-queue/done.txt as made. Runs when reel-queue/sync-request.txt changes, or by hand.
+on:
+  push:
+    branches: [main]
+    paths: ['reel-queue/sync-request.txt']
+  workflow_dispatch:
+
+concurrency:
+  group: reel-queue
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: APP_SECRET
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CLOUDFARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFARE_ACCOUNT_ID }}
+      D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID || secrets.CLOUDFLARE_DB_ID || secrets.CLOUDFARE_DB_ID || vars.D1_DATABASE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Insert D1 database id into wrangler.toml
+        run: sed -i "s/D1_DATABASE_ID_PLACEHOLDER/${D1_DATABASE_ID}/" wrangler.toml
+
+      - name: Mark finished ideas as made
+        run: |
+          ids=$(grep -E '^[0-9]+$' reel-queue/done.txt | paste -sd, - || true)
+          if [ -n "$ids" ]; then
+            npx wrangler d1 execute DB --remote --command "UPDATE ideas SET kind = 'reel_done' WHERE kind = 'reel' AND id IN ($ids)"
+          fi
+          : > reel-queue/done.txt
+
+      - name: Export waiting ideas
+        run: |
+          npx wrangler d1 execute DB --remote --json --command "SELECT id, text, created_at FROM ideas WHERE kind = 'reel' ORDER BY id" > "$RUNNER_TEMP/q.json"
+          node -e '
+            const raw = JSON.parse(require("fs").readFileSync(process.env.RUNNER_TEMP + "/q.json", "utf8"));
+            const rows = (Array.isArray(raw) ? raw[0] : raw).results || [];
+            require("fs").writeFileSync("reel-queue/reel-ideas.json", JSON.stringify(rows, null, 2) + "\n");
+            console.log("Waiting reel ideas:", rows.length);
+          '
+
+      - name: Commit the queue
+        run: |
+          git config user.name "reel-bot"
+          git config user.email "reel-bot@users.noreply.github.com"
+          git add reel-queue/reel-ideas.json reel-queue/done.txt
+          git diff --cached --quiet || git commit -m "reel-queue: sync"
+          git pull --rebase -q && git push
