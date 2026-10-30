@@ -8,6 +8,8 @@ import { formatIST } from './time.js';
 import { handleMedia } from './media.js';
 import { quizContext, quizNow } from './learning.js';
 import { sendVoiceReply } from './voice.js';
+import { reelCommand } from './reels.js';
+import { calorieCommand, calorieImage, calorieImplicit } from './calories.js';
 
 const MEDIA_TYPES = ['audio', 'image', 'document'];
 
@@ -34,12 +36,14 @@ const HELP_TEXT = `Honey here, your personal sidekick with zero salary demands �
 - Work: "write a LinkedIn post about X", "save post idea: ...", "write my standup"
 - Memory: "what was that book Rahul recommended?", "Rahul's wife is Neha, loves cricket", "what do I know about Rahul?"
 - LinkedIn: "idea: ...", then "turn my saved ideas into this week's posts" (drafts, schedules, pings you)
+- Calories: "/calorie 2 parathas and chai" or a food photo (caption /calorie). I ask at 12:00, 2:00, 4:40 and 9:30 and send a weekly summary on Sunday. "/calorie today", "/calorie week", "/calorie goal 1800"
+- Reels: "/makereel <idea>" queues a reel idea for Claude, "/reels" shows the queue
 - Quick lists (instant): "tasks", "reminders", "notes", "habits"
 - Oops buttons: "undo" removes what I just added, "snooze 10" pushes a reminder that just rang
 - Weather: "weather" or "will it rain in Ranchi?"
 - Voice replies: send me a voice note and I'll answer in a voice note too (English replies)
 
-Commands: /help, /reset (forget this chat's context), /quiz, /briefing on|off (morning summary and Sunday review), /journal on|off (nightly prompt), /voicereply on|off, /track, /budget, /statement, /money on|off (weekly money check-in).
+Commands: /help, /reset (forget this chat's context), /quiz, /calorie (log or review meals, /calorie on|off for the prompts), /briefing on|off (morning summary and Sunday review), /journal on|off (nightly prompt), /voicereply on|off, /track, /budget, /statement, /money on|off (weekly money check-in).
 Please don't send passwords, card numbers or ID numbers.`;
 
 export function ownerNumber(env) {
@@ -119,6 +123,15 @@ export async function handleIncoming(env, msg, nowMs = Date.now()) {
     text = msg.text.trim().slice(0, 2000);
   } else if (MEDIA_TYPES.includes(msg.type)) {
     try {
+      // A food photo: either captioned /calorie, or sent while a meal prompt is waiting for an answer.
+      if (msg.type === 'image') {
+        const meal = await calorieImage(env, msg, nowMs);
+        if (meal) {
+          await typing;
+          await sendText(env, owner, meal);
+          return { replied: true, calories: true };
+        }
+      }
       const result = await handleMedia(env, msg, nowMs);
       if (result.reply) {
         await sendText(env, owner, result.reply);
@@ -189,6 +202,33 @@ export async function handleIncoming(env, msg, nowMs = Date.now()) {
     await sendText(env, owner, command.endsWith('on') ? 'Weekly money check-in is on (Sundays, 7:30 PM IST) 🧾' : 'Weekly money check-in is off.');
     return { replied: true };
   }
+  if (command.startsWith('/makereel') || command.startsWith('/reels')) {
+    try {
+      const reply = await reelCommand(env, text, nowMs);
+      if (reply) {
+        await sendText(env, owner, reply);
+        return { replied: true };
+      }
+    } catch (error) {
+      console.error('Reel command failed:', error.message);
+      await sendText(env, owner, 'Could not save that reel idea just now 😵 Try /makereel again in a minute.');
+      return { replied: true, error: true };
+    }
+  }
+  if (command.startsWith('/calorie')) {
+    try {
+      const reply = await calorieCommand(env, text, nowMs);
+      if (reply) {
+        await typing;
+        await sendText(env, owner, reply);
+        return { replied: true };
+      }
+    } catch (error) {
+      console.error('Calorie command failed:', error.message);
+      await sendText(env, owner, 'My calorie counter tripped 🥴 Try /calorie again in a minute.');
+      return { replied: true, error: true };
+    }
+  }
   if (command === '/help' || command === 'help') {
     await sendText(env, owner, HELP_TEXT);
     return { replied: true };
@@ -210,6 +250,18 @@ export async function handleIncoming(env, msg, nowMs = Date.now()) {
     }
   } catch (error) {
     console.error('Fast path failed, using the assistant:', error.message);
+  }
+
+  // A plain text or voice reply while a meal prompt is waiting: count it as a meal if it looks like one.
+  try {
+    const meal = await calorieImplicit(env, msg, text, nowMs);
+    if (meal) {
+      await typing;
+      await sendText(env, owner, prefix ? `${prefix}\n\n${meal}` : meal);
+      return { replied: true, calories: true };
+    }
+  } catch (error) {
+    console.error('Calorie reply failed, using the assistant:', error.message);
   }
 
   const [history, extra] = await Promise.all([loadHistory(env), extraContext(env, nowMs)]);

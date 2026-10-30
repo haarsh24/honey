@@ -43,3 +43,10 @@ HABIT_TIME_UTC = "15:00"
 MONEY_TIME_UTC = "14:00"
 MONEY_DAY = "0"
 NEWS_TIME_UTC = "03:00"
+# Calorie tracker meal prompts: 06:30 UTC = 12:00 IST breakfast, 08:30 = 14:00 lunch, 11:10 = 16:40 snack, 16:00 = 21:30 dinner.
+CAL_BREAKFAST_TIME_UTC = "06:30"
+CAL_LUNCH_TIME_UTC = "08:30"
+CAL_SNACK_TIME_UTC = "11:10"
+CAL_DINNER_TIME_UTC = "16:00"
+# Sunday calorie summary (15:15 UTC = 20:45 IST).
+CAL_WEEKLY_TIME_UTC = "15:15"

@@ -98,11 +98,18 @@ Honey is the funny friend who happens to be great at admin: dry wit, light roast
 - Instant database answers for plain list requests
 - AI fallbacks: Workers AI → Groq → Gemini (with a lighter Gemini model as backup), so one slow or busy provider never blocks you
 
+### 🍽️ Calorie tracker
+- `/calorie 2 parathas and chai`, or send a food photo (caption `/calorie`, optional text). AI estimates calories and macros.
+- Meal prompts at 12:00, 14:00, 16:40 and 21:30 IST. Reply with a photo and/or text and it is logged to that meal.
+- Sunday 20:45 IST weekly summary: daily bars, average, goal comparison, macros, one suggestion.
+- `/calorie today` · `week` · `goal 1800` · `fix 450` · `undo` · `on|off`. Times are set in `wrangler.toml` (`CAL_*_TIME_UTC`).
+- Estimates are rough. Prompts only send while the 24h WhatsApp window is open, so message Honey once a day.
+
 ---
 
 ## 🕹️ Commands
 
-`/help` · `/reset` (forget this chat's context; saved data stays) · `/quiz` · `/briefing on|off` · `/journal on|off` · `/voicereply on|off` · `/track` · `/budget` · `/statement` · `/money on|off` (weekly money check-in)
+`/help` · `/reset` (forget this chat's context; saved data stays) · `/quiz` · `/calorie` · `/briefing on|off` · `/journal on|off` · `/voicereply on|off` · `/track` · `/budget` · `/statement` · `/money on|off` (weekly money check-in)
 
 ---
 

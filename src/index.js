@@ -2,6 +2,7 @@ import { buildDigest } from './digest.js';
 import { runMoneyCheckin } from './money.js';
 import { runBriefing, runJournalPrompt, runWeekly } from './briefing.js';
 import { runDrill } from './learning.js';
+import { runCalorieSchedule } from './calories.js';
 import { runDigest, runHabitNudge, runWatchCheck } from './jobs.js';
 import { handleIncoming } from './handler.js';
 import { cleanup, runDueReminders } from './reminders.js';
@@ -165,6 +166,12 @@ export default {
           if (weekday && minute % 15 === 0 && minutesOfDay >= 3 * 60 + 45 && minutesOfDay <= 10 * 60) await runWatchCheck(env, now, 'stock');
           if (hour === 16 && minute === 30) await runWatchCheck(env, now, 'mf'); // 22:00 IST, after NAVs are published
           if (hour === 21 && minute === 5) await cleanup(env, now); // 02:35 IST
+          // Meal prompts (12:00, 14:00, 16:40, 21:30 IST) and the Sunday calorie summary. Its own try so a failure never blocks other jobs.
+          try {
+            await runCalorieSchedule(env, now);
+          } catch (error) {
+            console.error('Calorie schedule failed:', error.message);
+          }
         } catch (error) {
           console.error('Cron failed:', error.message);
         }

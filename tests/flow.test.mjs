@@ -132,3 +132,18 @@ test('cron: 3 failures -> missed, delivered on next message', async () => {
   assert.equal((await env.DB.prepare('SELECT status FROM reminders').first()).status, 'sent');
   assert.ok(await getState(env, 'last_inbound_at'));
 });
+
+test('/makereel queues an idea, /reels lists it, cancel removes it', async () => {
+  const calls = mockFetch();
+  const env = makeEnv();
+  await handleIncoming(env, msg('/makereel how UPI works', 'r1'), NOW);
+  assert.match(sent(calls).at(-1).text.body, /Idea #|Locked in|Queued/);
+  const row = await env.DB.prepare("SELECT * FROM ideas WHERE kind = 'reel'").first();
+  assert.equal(row.text, 'how UPI works');
+  await handleIncoming(env, msg('/makereel', 'r2'), NOW);
+  assert.match(sent(calls).at(-1).text.body, /Tell me the idea/);
+  await handleIncoming(env, msg('/reels', 'r3'), NOW);
+  assert.match(sent(calls).at(-1).text.body, new RegExp(`${row.id}\\. how UPI works`));
+  await handleIncoming(env, msg(`/reels cancel ${row.id}`, 'r4'), NOW);
+  assert.equal(await env.DB.prepare("SELECT * FROM ideas WHERE kind = 'reel'").first(), null);
+});

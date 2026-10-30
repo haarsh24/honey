@@ -3,6 +3,7 @@ name: Deploy to Cloudflare
 on:
   push:
     branches: [main]
+    paths-ignore: ['reel-queue/**']
   workflow_dispatch: # lets you click "Run workflow" in the Actions tab
 
 concurrency:
