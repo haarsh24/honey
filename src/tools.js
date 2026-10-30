@@ -8,6 +8,7 @@ import { WORK_TOOLS } from './work.js';
 import { EXTRA_TOOLS, rememberAction } from './extras.js';
 import { MEMORY_TOOLS, indexAfterTool } from './memory.js';
 import { POST_TOOLS } from './posts.js';
+import { MONEY_TOOLS } from './money.js';
 
 const MAX_TEXT = 2000;
 const REPEATS = ['none', 'daily', 'weekly', 'monthly'];
@@ -111,6 +112,11 @@ export const TOOL_HELP = `- save_note {"text": string}
 - list_expenses {"limit"?: number}
 - delete_expense {"id": number}
 - expense_summary {"period": "today"|"week"|"month"|"all", "category"?: string}
+- track_expenses {"text": string} (several spends from one message, e.g. "450 lunch, 120 auto, 2k groceries"; add "yesterday" in the text for yesterday)
+- spending_review {"period"?: "week"|"month", "days"?: number, "from"?: "YYYY-MM-DD", "to"?: "YYYY-MM-DD"} (where the money goes and where they are overspending; its report is sent as is)
+- set_budget {"category": string ("total" for overall), "amount": number (monthly rupees)}
+- list_budgets {}
+- remove_budget {"category": string}
 - add_task {"text": string}
 - list_tasks {}
 - complete_task {"id": number}
@@ -529,7 +535,7 @@ export const TOOLS = {
   },
 };
 
-Object.assign(TOOLS, HABIT_TOOLS, MARKET_TOOLS, DIGEST_TOOLS, WORK_TOOLS, EXTRA_TOOLS, MEMORY_TOOLS, POST_TOOLS);
+Object.assign(TOOLS, HABIT_TOOLS, MARKET_TOOLS, DIGEST_TOOLS, WORK_TOOLS, EXTRA_TOOLS, MEMORY_TOOLS, POST_TOOLS, MONEY_TOOLS);
 
 TOOLS.web_search = async (env, args) => {
   const query = cleanText(args.query);

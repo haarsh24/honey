@@ -2,6 +2,8 @@ import { gemini } from './gemini.js';
 import { runTool } from './tools.js';
 import { parseIST } from './time.js';
 import { parseModelJson } from './util.js';
+import { importStatement, reviewRange, setStatementDone } from './money.js';
+import { istParts } from './time.js';
 
 const MAX_BYTES = { audio: 8_000_000, image: 6_000_000, document: 10_000_000 };
 
@@ -48,14 +50,39 @@ async function handleVoice(env, media) {
   return { text, prefix: `🎤 "${text}"` };
 }
 
-async function handleImage(env, msg, media, nowMs) {
-  const caption = clip(msg.media.caption, 300);
+const STATEMENT_HINT = /statement|passbook|transactions?|upi history|spends/i;
+
+/** Reads a bank/UPI/card statement (PDF or screenshot), saves the spends and shows where the money went. */
+async function handleStatement(env, media, nowMs) {
+  const year = istParts(nowMs).y;
   const raw = await gemini(env, {
     media,
     json: true,
-    prompt: `Look at this image and answer ONLY with JSON: {"type":"receipt"|"other","merchant":string,"amount":number,"currency":"INR"|"USD"|"EUR"|...,"date":"YYYY-MM-DD" or "","category":"food|groceries|travel|shopping|bills|health|entertainment|other","summary":"one or two sentences describing the image","text":"any readable text in the image, max 800 characters"}. Use type "receipt" only for a bill, invoice or payment screenshot, and then amount is the final total paid. For non-receipts set amount to 0.${caption ? ` The user's caption: "${caption}"` : ''}`,
+    prompt: `This is a bank, UPI or credit card statement or a transaction history. Answer ONLY with JSON: {"transactions":[{"date":"YYYY-MM-DD","desc":"merchant or payee, max 40 characters","amount":number,"category":"food|groceries|travel|bills|shopping|health|entertainment|learning|personal|other"}]}. Include ONLY money going OUT (purchases, UPI payments, card spends, cash withdrawals, EMIs). Leave out credits, salary, refunds, interest, transfers between the owner's own accounts and credit card bill payments. Amounts are positive rupees. At most 150 transactions. Dates in the document may be DD/MM/YYYY or DD-MMM; the current year is ${year}.`,
+  });
+  const parsed = parseModelJson(raw);
+  const transactions = Array.isArray(parsed?.transactions) ? parsed.transactions : [];
+  if (!transactions.length) {
+    return { reply: "I opened it but could not find any spends in it 🤔 Is it the transactions page? Try a clearer PDF or screenshot, or use /track 450 lunch, 120 auto." };
+  }
+  const result = await importStatement(env, transactions, nowMs);
+  if (!result.from) return { reply: 'I read the file but the dates or amounts were not clear enough to save. Try another screenshot or /track your spends.' };
+  await setStatementDone(env);
+  const review = await reviewRange(env, result.from, result.to + 24 * 3600 * 1000, `${result.inserted + result.duplicates} spends from your statement`, nowMs);
+  const head = `📄 Statement read: ${result.inserted + result.duplicates} spends found. ${result.inserted} new (${money(result.total)}) saved${result.duplicates ? `, ${result.duplicates} were already logged so I skipped them` : ''}.`;
+  return { reply: `${head}\n\n${review.text}`.slice(0, 3900) };
+}
+
+async function handleImage(env, msg, media, nowMs) {
+  const caption = clip(msg.media.caption, 300);
+  if (STATEMENT_HINT.test(caption)) return handleStatement(env, media, nowMs);
+  const raw = await gemini(env, {
+    media,
+    json: true,
+    prompt: `Look at this image and answer ONLY with JSON: {"type":"receipt"|"statement"|"other","merchant":string,"amount":number,"currency":"INR"|"USD"|"EUR"|...,"date":"YYYY-MM-DD" or "","category":"food|groceries|travel|shopping|bills|health|entertainment|other","summary":"one or two sentences describing the image","text":"any readable text in the image, max 800 characters"}. Use type "receipt" only for ONE bill, invoice or payment screenshot, and then amount is the final total paid. Use type "statement" for a bank, UPI or card transaction history that lists many transactions. For non-receipts set amount to 0.${caption ? ` The user's caption: "${caption}"` : ''}`,
   });
   const a = parseModelJson(raw) ?? { type: 'other', summary: clip(raw, 400), text: '' };
+  if (a.type === 'statement') return handleStatement(env, media, nowMs);
 
   const amount = Number(a.amount);
   if (a.type === 'receipt' && Number.isFinite(amount) && amount > 0) {
@@ -94,12 +121,14 @@ async function handleImage(env, msg, media, nowMs) {
 async function handleDocument(env, msg, media, nowMs) {
   const caption = clip(msg.media.caption, 300);
   const name = clip(msg.media.filename, 80) || 'document';
+  if (STATEMENT_HINT.test(caption) || /statement/i.test(name)) return handleStatement(env, media, nowMs);
   const raw = await gemini(env, {
     media,
     json: true,
-    prompt: `Read this document and answer ONLY with JSON: {"summary":"3-5 sentence summary","deadlines":[{"date":"YYYY-MM-DD","what":"short description, e.g. Electricity bill due Rs 1,240"}],"amounts":"key amounts in one line or empty"}. Only include deadlines that are explicit due dates or deadlines in the document, up to 3.${caption ? ` The user's note: "${caption}"` : ''}`,
+    prompt: `Read this document and answer ONLY with JSON: {"kind":"statement"|"other","summary":"3-5 sentence summary","deadlines":[{"date":"YYYY-MM-DD","what":"short description, e.g. Electricity bill due Rs 1,240"}],"amounts":"key amounts in one line or empty"}. Use kind "statement" only for a bank, UPI or credit card statement that lists many transactions. Only include deadlines that are explicit due dates or deadlines in the document, up to 3.${caption ? ` The user's note: "${caption}"` : ''}`,
   });
   const d = parseModelJson(raw) ?? { summary: clip(raw, 600), deadlines: [] };
+  if (d.kind === 'statement') return handleStatement(env, media, nowMs);
 
   const created = [];
   for (const item of Array.isArray(d.deadlines) ? d.deadlines.slice(0, 3) : []) {

@@ -17,6 +17,7 @@ const RULES = [
   { group: 'core', text: "- Web: for anything current or outside your knowledge (news, prices, scores, \"search for...\", \"google...\", who/what/when facts) call web_search. If the user shares a link (or says \"open this\"/\"summarise this page\"), call read_url with their question. Reply with the answer in a few lines and mention the source site name; never paste long URLs unless asked." },
   { group: 'meeting', text: "- Meeting notes (a typed message or a long voice note): call save_meeting once with a short title, a 2-4 sentence summary and the action items, then reply with the summary and the action items as a short list. For action items with an explicit date or time, also call add_reminder." },
   { group: 'journal', text: "- Journal: \"journal: ...\" or \"dear diary ...\" means save_journal with the user's own words. Questions about past days (\"what happened last Tuesday?\") use search_journal (work out the date yourself from the current IST time)." },
+  { group: 'money', text: "- Money: several spends in one message (\"spent 200 on chai and 500 on petrol\") use track_expenses with the user's own words. A single spend uses log_expense. \"Where am I overspending\", \"analyze my spending\", \"spending review\" use spending_review (period week or month) and the report is sent as is. \"Set a budget of 6000 for food\" uses set_budget. For a bank, UPI or card statement tell them to send the PDF or a screenshot (optionally with the caption \"statement\")." },
   { group: 'core', text: "- \"save: ...\", \"note: ...\" and \"remember that ...\" (no person's name as the subject) always call save_note with the user's own words." },
   { group: 'core', text: "- Translate or rewrite requests: reply with just the result (and at most one short line of comment). Tones: polite, funny, short, formal, casual." },
   { group: 'core', text: "- Dates, day-of-week and \"how many days\" questions use calc_date. Arithmetic uses calculate. Currency uses convert_currency (say the rates are reference rates). Never do these in your head. If the user gives a date without a year, use the next time it comes up: this year if it is still ahead of today, otherwise next year. Report days_from_today exactly as the tool returns it." },
@@ -34,6 +35,7 @@ const TOPIC = {
   journal: /\b(journal|diary|what happened|yesterday|last (mon|tues?|wednes|thurs?|fri|satur|sun)day)\b|journal prompt/i,
   countdown: /\b(countdowns?|days? (till|until|left|to|since)|how many days)\b/i,
   learn: /\b(quiz|learn|teach|practice|study|drill)\b|quiz question/i,
+  money: /\b(spen[dt]\w*|expenses?|budgets?|overspen\w*|extra spend\w*|statement|savings?|saving|where did my money|money)\b/i,
 };
 
 const TOOL_GROUPS = {
@@ -45,6 +47,7 @@ const TOOL_GROUPS = {
   journal: ['save_journal', 'search_journal'],
   countdown: ['add_countdown', 'list_countdowns', 'delete_countdown'],
   learn: ['learn_topic', 'learn_off', 'quiz_done'],
+  money: ['track_expenses', 'spending_review', 'set_budget', 'list_budgets', 'remove_budget'],
 };
 const GROUP_OF_TOOL = Object.fromEntries(Object.entries(TOOL_GROUPS).flatMap(([g, names]) => names.map((n) => [n, g])));
 

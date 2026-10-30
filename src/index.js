@@ -1,4 +1,5 @@
 import { buildDigest } from './digest.js';
+import { runMoneyCheckin } from './money.js';
 import { runBriefing, runJournalPrompt, runWeekly } from './briefing.js';
 import { runDrill } from './learning.js';
 import { runDigest, runHabitNudge, runWatchCheck } from './jobs.js';
@@ -154,6 +155,8 @@ export default {
           if (d.getUTCDay() === 0 && hour === 14 && minute === 30) await runWeekly(env, now); // Sunday 20:00 IST
           const [hh, hm] = at(env.HABIT_TIME_UTC, '15:00'); // 20:30 IST
           const [nh, nm] = at(env.NEWS_TIME_UTC, '03:00'); // 08:30 IST
+          const [mh, mm] = at(env.MONEY_TIME_UTC, '14:00'); // 19:30 IST
+          if (d.getUTCDay() === Number(env.MONEY_DAY ?? 0) && hour === mh && minute === mm) await runMoneyCheckin(env, now); // Sunday
           if (hour === hh && minute === hm) await runHabitNudge(env, now);
           if (hour === nh && minute === nm) await runDigest(env, now);
           // Indian market hours 09:15-15:30 IST = 03:45-10:00 UTC, Monday to Friday, every 15 minutes.

@@ -22,6 +22,8 @@ You (WhatsApp) ──► Meta Cloud API ──► Cloudflare Worker ──► AI
 | **Reminders** (one-time or repeating) | `remind me to pay rent on the 1st at 9am` · `remind me every Monday 8am to plan the week` |
 | **Snooze** | `snooze 10` right after a reminder rings |
 | **Expenses** | `spent 450 on lunch` · `how much did I spend this week?` |
+| **Money tracker** | `/track 450 lunch, 120 auto, 2k groceries` logs many spends at once (no AI used). `/track week` or `/track month` shows where the money goes and **where you are overspending** (categories that jumped, small spends that add up, repeat merchants, wants share, budgets). `/budget food 6000` sets monthly limits. |
+| **Statement review** | Every Sunday Honey asks for your bank/UPI/card statement. Send the PDF or a screenshot (or use `/statement`) and it pulls out the spends, skips ones you already logged, and shows the overspending review. |
 | **Tasks** | `add task: renew insurance` · `my tasks` · `done 3` |
 | **Undo** | `undo` removes the last note, reminder, expense, task or habit entry |
 | **Instant lists** | `tasks` · `reminders` · `notes` · `habits` (answered in a blink, no AI wait) |
@@ -82,6 +84,7 @@ Notes, journal entries, ideas and contact facts are all searchable **by meaning*
 | **8:30 PM** | Habit nudge (only habits you did recently but not yet today) |
 | **9:30 PM** | Journal prompt |
 | **10:00 PM** | Mutual fund alerts |
+| **Sunday 7:30 PM** | Weekly money check-in: spending review for the week plus a request for your statement |
 | **Sunday 8:00 PM** | Weekly review: spending, finished tasks, journal count, quiz score, one suggestion |
 
 Proactive messages go out for free only inside WhatsApp's 24-hour reply window (see [Reminder template](#-reminder-template-only-needed-after-24-hours-of-silence)).
@@ -99,7 +102,7 @@ Honey is the funny friend who happens to be great at admin: dry wit, light roast
 
 ## 🕹️ Commands
 
-`/help` · `/reset` (forget this chat's context; saved data stays) · `/quiz` · `/briefing on|off` · `/journal on|off` · `/voicereply on|off`
+`/help` · `/reset` (forget this chat's context; saved data stays) · `/quiz` · `/briefing on|off` · `/journal on|off` · `/voicereply on|off` · `/track` · `/budget` · `/statement` · `/money on|off` (weekly money check-in)
 
 ---
 
@@ -168,6 +171,8 @@ Everything works at ₹0. A paid Gemini project would unlock Google Search groun
 | `LLM_PROVIDERS` | `workers-ai,groq,gemini` | Order in which AI providers are tried |
 | `GEMINI_MODEL` | `gemini-flash-latest` | Model for voice, photos, PDFs, web, news |
 | `BRIEFING_TIME_UTC` | `02:30` | Morning briefing (08:00 IST) |
+| `MONEY_TIME_UTC` | `14:00` | Weekly money check-in (19:30 IST) |
+| `MONEY_DAY` | `0` | Day of the check-in (0 = Sunday) |
 | `NEWS_TIME_UTC` | `03:00` | News digest (08:30 IST) |
 | `QUIZ_TIME_UTC` | `07:30` | Daily quiz (13:00 IST) |
 | `HABIT_TIME_UTC` | `15:00` | Habit nudge (20:30 IST) |

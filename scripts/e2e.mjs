@@ -123,6 +123,10 @@ const scenarios = [
   S('Essentials', 'mark task 1 as done', { tools: ['complete_task'] }),
   S('Essentials', 'add task: temporary thing', { tools: ['add_task'] }),
   S('Essentials', 'undo', { tools: ['undo_last'] }),
+  S('Money', '/track 450 lunch, 120 auto', { reply: /Logged 2 spends/ }),
+  S('Money', 'spent 200 on chai and 500 on petrol', { reply: /700|200/ }),
+  S('Money', 'set a budget of 6000 for food', { tools: ['set_budget'] }),
+  S('Money', 'where am I overspending this week?', { tools: ['spending_review'], reply: /Spending review/ }),
   S('Habits', 'did gym today', { tools: ['log_habit'], reply: /streak|day|gym/i }),
   S('Habits', 'how are my habits?', { reply: /gym/i }),
   S('Memory', "Rahul's wife is Neha, she loves cricket", { tools: ['remember_contact'] }),
@@ -154,7 +158,20 @@ const scenarios = [
   S('Learning', '/quiz', { reply: /\?/ }),
   S('Tone', "I'm really stressed, my boss keeps piling work on me", { reply: /./ }),
 ];
+tryMake('PDF2', 'application/pdf', () => {
+  const lines = ['HDFC Bank Statement 20 Oct to 27 Oct 2026', '21/10/2026 SWIGGY 480.00 Dr', '22/10/2026 SWIGGY 520.00 Dr', '23/10/2026 AMAZON 2499.00 Dr', '24/10/2026 SALARY 50000.00 Cr', '25/10/2026 UBER 310.00 Dr'];
+  const stream = `BT /F1 14 Tf 40 740 Td 20 TL ${lines.map((l) => `(${l}) Tj T*`).join(' ')} ET`;
+  const objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
+  let pdf = '%PDF-1.4\n'; const offs = [];
+  objs.forEach((o, i) => { offs.push(pdf.length); pdf += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${offs.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return Buffer.from(pdf);
+});
 const mediaScenarios = [
+  { group: 'Money', name: 'bank statement PDF', msg: { type: 'document', media: { id: 'PDF2', mime: 'application/pdf', filename: 'statement.pdf', caption: 'statement' } }, tools: [], reply: /Statement read: [3-5] spends found[\s\S]*Spending review/ },
   { group: 'Voice, photo, PDF', name: 'voice note (text-to-speech sample)', msg: { type: 'audio', media: { id: 'VOICE1', mime: 'audio/wav' } }, tools: ['add_reminder'], reply: /water|9/i },
   { group: 'Voice, photo, PDF', name: 'receipt photo', msg: { type: 'image', media: { id: 'IMG1', mime: 'image/png', caption: '' } }, tools: ['log_expense'], reply: /450|Logged/i },
   { group: 'Voice, photo, PDF', name: 'electricity bill PDF', msg: { type: 'document', media: { id: 'PDF1', mime: 'application/pdf', filename: 'bill.pdf', caption: '' } }, tools: ['add_reminder'], reply: /1,?240|bill|electric/i },

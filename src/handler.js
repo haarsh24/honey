@@ -1,3 +1,4 @@
+import { trackCommand, budgetCommand, statementCommand } from './money.js';
 import { runAssistant } from './assistant.js';
 import { getState, markSeen, setState } from './db.js';
 import { sendText, showTyping } from './whatsapp.js';
@@ -16,6 +17,7 @@ const HELP_TEXT = `Honey here, your personal sidekick with zero salary demands ð
 - Notes: "save: book idea - Atomic Habits", "what did I save about books?"
 - Reminders: "remind me to pay rent on the 1st at 9am", "remind me every Monday 8am to plan the week"
 - Expenses: "spent 450 on lunch", "how much did I spend this week?"
+- Money tracker: /track 450 lunch, 120 auto (log many at once), /track week, /budget food 6000, and a weekly check-in where you send your statement and I show where you overspend
 - Tasks: "add task: renew insurance", "my tasks"
 - Writing: "draft an email asking my manager for leave on Friday"
 - Meeting notes: send a long voice note and I'll make a summary and action items
@@ -37,7 +39,7 @@ const HELP_TEXT = `Honey here, your personal sidekick with zero salary demands ð
 - Weather: "weather" or "will it rain in Ranchi?"
 - Voice replies: send me a voice note and I'll answer in a voice note too (English replies)
 
-Commands: /help, /reset (forget this chat's context), /quiz, /briefing on|off (morning summary and Sunday review), /journal on|off (nightly prompt), /voicereply on|off.
+Commands: /help, /reset (forget this chat's context), /quiz, /briefing on|off (morning summary and Sunday review), /journal on|off (nightly prompt), /voicereply on|off, /track, /budget, /statement, /money on|off (weekly money check-in).
 Please don't send passwords, card numbers or ID numbers.`;
 
 export function ownerNumber(env) {
@@ -166,6 +168,25 @@ export async function handleIncoming(env, msg, nowMs = Date.now()) {
       console.error('Quiz failed:', error.message);
       await sendText(env, owner, 'My quiz brain tripped ðŸ¥´ Try /quiz again in a minute.');
     }
+    return { replied: true };
+  }
+  if (msg.type === 'text' && /^\/(track|budget)\b/i.test(text)) {
+    try {
+      const reply = /^\/track\b/i.test(text) ? await trackCommand(env, text, nowMs) : await budgetCommand(env, text);
+      await sendText(env, owner, reply);
+    } catch (error) {
+      console.error('Money command failed:', error.message);
+      await sendText(env, owner, 'My calculator tripped ðŸ§® Try that /track message again.');
+    }
+    return { replied: true };
+  }
+  if (command === '/statement') {
+    await sendText(env, owner, await statementCommand(env, nowMs));
+    return { replied: true };
+  }
+  if (command === '/money on' || command === '/money off') {
+    await setState(env, 'money_checkin', command.endsWith('on') ? 'on' : 'off');
+    await sendText(env, owner, command.endsWith('on') ? 'Weekly money check-in is on (Sundays, 7:30 PM IST) ðŸ§¾' : 'Weekly money check-in is off.');
     return { replied: true };
   }
   if (command === '/help' || command === 'help') {
